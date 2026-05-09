@@ -1,0 +1,140 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hero"]
+bg_color = Color(0.988235, 0.92549, 0.729412, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.94902, 0.603922, 0.376471, 1)
+shadow_color = Color(0, 0, 0, 0.08)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.831373, 0.933333, 0.956863, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.266667, 0.611765, 0.780392, 1)
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Root" type="ColorRect" parent="CanvasLayer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(1, 0.956863, 0.898039, 1)
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 48.0
+offset_top = 36.0
+offset_right = -48.0
+offset_bottom = -36.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Layout" type="VBoxContainer" parent="CanvasLayer/Root/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Hero" type="PanelContainer" parent="CanvasLayer/Root/Margin/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_hero")
+
+[node name="HeroMargin" type="MarginContainer" parent="CanvasLayer/Root/Margin/Layout/Hero"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="HeroContent" type="VBoxContainer" parent="CanvasLayer/Root/Margin/Layout/Hero/HeroMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Hero/HeroMargin/HeroContent"]
+layout_mode = 2
+text = "Emergency Dispatch Academy"
+theme_override_font_sizes/font_size = 34
+theme_override_colors/font_color = Color(0.172549, 0.211765, 0.282353, 1)
+
+[node name="SubtitleLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Hero/HeroMargin/HeroContent"]
+layout_mode = 2
+text = "A dispatch training game for children, students, and future responders."
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.282353, 0.321569, 0.384314, 1)
+
+[node name="StatusLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Hero/HeroMargin/HeroContent"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Status"
+theme_override_colors/font_color = Color(0.196078, 0.278431, 0.368627, 1)
+
+[node name="Actions" type="HBoxContainer" parent="CanvasLayer/Root/Margin/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="TutorialButton" type="Button" parent="CanvasLayer/Root/Margin/Layout/Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Start Tutorial"
+
+[node name="PreAssessButton" type="Button" parent="CanvasLayer/Root/Margin/Layout/Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Take Pre-Assessment"
+
+[node name="EasyButton" type="Button" parent="CanvasLayer/Root/Margin/Layout/Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Play Easy Mode"
+
+[node name="CertifiedButton" type="Button" parent="CanvasLayer/Root/Margin/Layout/Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Certified Dispatcher"
+
+[node name="CertificationCard" type="PanelContainer" parent="CanvasLayer/Root/Margin/Layout"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="CertificationMargin" type="MarginContainer" parent="CanvasLayer/Root/Margin/Layout/CertificationCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="CertificationLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/CertificationCard/CertificationMargin"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Certification status"

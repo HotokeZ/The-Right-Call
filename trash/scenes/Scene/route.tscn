@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://dra2qalj8bruq"]
+
+[node name="Node2D" type="Node2D" unique_id=931739287]
+position = Vector2(594, 297)
+
+[node name="TileMap" type="TileMap" parent="." unique_id=1039735689]
+format = 2

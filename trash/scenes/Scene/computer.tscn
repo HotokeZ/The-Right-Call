@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://l11xulpiuy1a"]
+
+[ext_resource type="Texture2D" uid="uid://c4t2n4t0knn5f" path="res://Computer.png" id="1_j3nre"]
+[ext_resource type="Script" uid="uid://ba27sa137jhjv" path="res://new_script.gd" id="2_2nmk8"]
+
+[node name="Computer" type="Sprite2D" unique_id=640130921]
+position = Vector2(476, 306)
+texture = ExtResource("1_j3nre")
+script = ExtResource("2_2nmk8")
+
+[node name="Label2" type="Label" parent="." unique_id=1732250527]
+offset_left = -316.04156
+offset_top = -134.06384
+offset_right = -91.69678
+offset_bottom = -97.06384
+rotation = 0.043767028
+scale = Vector2(1.315207, 1)
+
+[node name="RichTextLabel" type="RichTextLabel" parent="." unique_id=810808278]
+offset_left = 413.0
+offset_top = -180.0
+offset_right = 644.0
+offset_bottom = 155.0
+
+[node name="TextEdit" type="LineEdit" parent="." unique_id=435803304]
+offset_left = -323.0
+offset_top = -26.0
+offset_right = -11.0
+offset_bottom = 5.0
