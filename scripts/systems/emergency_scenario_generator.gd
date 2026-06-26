@@ -39,7 +39,22 @@ const CURATED_SCENARIO_BANK_PATH := "res://data/gameplay/curated_instruction_sce
 const RECENT_TEMPLATE_MEMORY := 42
 const RECENT_SIGNATURE_MEMORY := 64
 const RECENT_SAFE_STRATEGY_MEMORY := 18
-const USE_CURATED_SCENARIOS_FOR_TESTING := false
+const USE_CURATED_SCENARIOS_FOR_TESTING := true
+
+# ── New Scenario Bank (primary source for easy_multiple_choice) ──────
+const SCENARIO_BANK_PATH_EN := "res://data/gameplay/scenario_bank_en.json"
+const SCENARIO_BANK_PATH_TL := "res://data/gameplay/scenario_bank_tl.json"
+const SCENARIO_BANK_PATH_TAGLISH := "res://data/gameplay/scenario_bank_taglish.json"
+
+var _scenario_bank_loaded_locale: String = ""
+var _scenario_bank_templates: Array = []
+var _scenario_bank_by_category: Dictionary = {
+	"fire": [],
+	"medical": [],
+	"criminal": []
+}
+
+var _curated_loaded_locale: String = ""
 
 var _bank_templates: Array = []
 var _bank_locations: Array = []
@@ -58,15 +73,61 @@ var _recent_template_ids: Array[String] = []
 var _recent_scenario_signatures: Array[String] = []
 var _recent_safe_strategy_signatures: Array[String] = []
 
+var _scenario_decks: Dictionary = {}
+var _last_played_template_ids: Dictionary = {}
+var _last_played_category: String = ""
+
 func _init() -> void:
 	_rng.randomize()
-	_load_curated_scenario_bank()
-	_load_local_scenario_bank()
+	_load_scenario_bank("en")        # New Scenario Bank — highest priority
+	_load_curated_scenario_bank("en") # Curated legacy bank — fallback
+	_load_local_scenario_bank()       # v2 generated bank — final fallback
 
-# ── Public API ──────────────────────────────────────────────────────
+# 🛑🛑 Public API 🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑
+
+func get_scenario_by_id(id: String, locale: String = "en", day_number: int = 1) -> Dictionary:
+	_load_curated_scenario_bank(locale)
+	var target_template: Dictionary = {}
+	for template in _curated_templates:
+		if template.get("id", "") == id:
+			target_template = template
+			break
+	if target_template.is_empty():
+		for template in _bank_templates:
+			if template.get("id", "") == id:
+				target_template = template
+				break
+				
+	if not target_template.is_empty():
+		var generated = _build_scenario_from_template(target_template, "easy_multiple_choice", locale, day_number)
+		if not generated.is_empty():
+			generated = _normalize_scenario_for_education(generated)
+			generated = _apply_day_option_count(generated, day_number)
+			return generated
+	return {}
 
 func generate_scenario(mode_id: String = "easy_multiple_choice", locale: String = "en", day_number: int = 1) -> Dictionary:
-	# Prioritize curated instruction-focused scenarios in easy mode to avoid dominant-answer repetition.
+	_load_scenario_bank(locale)
+	_load_curated_scenario_bank(locale)
+	
+	# NEW SCENARIO BANK — highest priority for easy_multiple_choice
+	if mode_id == "easy_multiple_choice":
+		var sb_category = _pick_category_for_day(day_number)
+		var sb_template = _pick_from_scenario_bank(sb_category)
+		if not sb_template.is_empty():
+			var sb_generated = _build_scenario_from_template(sb_template, mode_id, locale, day_number)
+			if not sb_generated.is_empty():
+				# NOTE: skip _apply_day_option_count for new bank — the display count
+				# is already controlled by difficulty in _show_player_choices.
+				_last_played_category = sb_generated.get("type", "")
+				var sb_id = String(sb_template.get("id", ""))
+				if sb_id != "":
+					_recent_template_ids.append(sb_id)
+					if _recent_template_ids.size() > RECENT_TEMPLATE_MEMORY:
+						_recent_template_ids.pop_front()
+				return sb_generated
+
+	# CURATED LEGACY BANK — second priority for easy_multiple_choice
 	if mode_id == "easy_multiple_choice" and USE_CURATED_SCENARIOS_FOR_TESTING:
 		var curated_template = _pick_curated_template_without_repeat(_pick_category_for_day(day_number))
 		if not curated_template.is_empty():
@@ -81,6 +142,7 @@ func generate_scenario(mode_id: String = "easy_multiple_choice", locale: String 
 					_recent_template_ids.append(curated_id)
 					if _recent_template_ids.size() > RECENT_TEMPLATE_MEMORY:
 						_recent_template_ids.pop_front()
+				_last_played_category = curated_generated.get("type", "")
 				return curated_generated
 
 	# Primary method using local scenario bank (since NLP backend was removed for HTML5)
@@ -90,6 +152,7 @@ func generate_scenario(mode_id: String = "easy_multiple_choice", locale: String 
 		var bank_generated = _build_scenario_from_template(bank_template, mode_id, locale, day_number)
 		if not bank_generated.is_empty():
 			bank_generated = _normalize_scenario_for_education(bank_generated)
+			_last_played_category = bank_generated.get("type", "")
 			return _apply_day_option_count(bank_generated, day_number)
 
 	# Final fallback to small built-in templates.
@@ -166,26 +229,72 @@ func evaluate_choice(scenario: Dictionary, choice_index: int, _locale: String = 
 
 # ── Internal helpers (unchanged fallback logic) ─────────────────────
 
-func _pick_category(day_number: int = 1) -> String:
-	return _pick_category_for_day(day_number)
 
-func _pick_severity(day_number: int = 1) -> String:
-	return _pick_severity_for_day(day_number)
+# ── Shared JSON bank loader ───────────────────────────────────────────────────
+# Returns the raw parsed Dictionary from a scenario JSON file, or {} on failure.
+func _read_scenario_json(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var file = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return {}
+	var parsed = JSON.parse_string(file.get_as_text())
+	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}
+
+# ── New Scenario Bank loader ────────────────────────────────────────────────
+func _load_scenario_bank(locale: String = "en") -> void:
+	if _scenario_bank_loaded_locale == locale and not _scenario_bank_templates.is_empty():
+		return
+	_scenario_bank_templates.clear()
+	_scenario_bank_by_category = {"fire": [], "medical": [], "criminal": []}
+
+	var path_map: Dictionary = {
+		"en": SCENARIO_BANK_PATH_EN,
+		"tl": SCENARIO_BANK_PATH_TL,
+		"taglish": SCENARIO_BANK_PATH_TAGLISH
+	}
+	var path: String = path_map.get(locale, SCENARIO_BANK_PATH_EN)
+	var parsed = _read_scenario_json(path)
+	if parsed.is_empty() and locale != "en":
+		parsed = _read_scenario_json(SCENARIO_BANK_PATH_EN)
+	if parsed.is_empty():
+		return
+
+	_scenario_bank_loaded_locale = locale
+	var templates = parsed.get("scenarios", [])
+	if typeof(templates) != TYPE_ARRAY:
+		return
+	for raw in templates:
+		if typeof(raw) != TYPE_DICTIONARY:
+			continue
+		var template: Dictionary = raw
+		var category = String(template.get("category", template.get("type", "fire")))
+		if category == "police":
+			category = "criminal"
+		if not _scenario_bank_by_category.has(category):
+			_scenario_bank_by_category[category] = []
+		_scenario_bank_templates.append(template)
+		var bucket: Array = _scenario_bank_by_category[category]
+		bucket.append(template)
+
+func _pick_from_scenario_bank(category: String) -> Dictionary:
+	var pool: Array = _scenario_bank_by_category.get(category, [])
+	if pool.is_empty():
+		pool = _scenario_bank_templates
+	if pool.is_empty():
+		return {}
+	var deck_key = "sb_" + category
+	return _get_next_from_deck(deck_key, pool)
 
 func _load_local_scenario_bank() -> void:
-	if not FileAccess.file_exists(LOCAL_SCENARIO_BANK_PATH):
-		return
-	var file = FileAccess.open(LOCAL_SCENARIO_BANK_PATH, FileAccess.READ)
-	if file == null:
-		return
-	var parsed = JSON.parse_string(file.get_as_text())
-	if typeof(parsed) != TYPE_DICTIONARY:
+
+	var parsed = _read_scenario_json(LOCAL_SCENARIO_BANK_PATH)
+	if parsed.is_empty():
 		return
 	_bank_locations = parsed.get("locations_ph", [])
 	var templates = parsed.get("scenarios", [])
 	if typeof(templates) != TYPE_ARRAY:
 		return
-
 	for raw in templates:
 		if typeof(raw) != TYPE_DICTIONARY:
 			continue
@@ -202,41 +311,60 @@ func _load_local_scenario_bank() -> void:
 		bucket.append(template)
 		_bank_by_category[category] = bucket
 
-func _load_curated_scenario_bank() -> void:
-	if not FileAccess.file_exists(CURATED_SCENARIO_BANK_PATH):
+func _load_curated_scenario_bank(locale: String = "en") -> void:
+	if _curated_loaded_locale == locale and not _curated_templates.is_empty():
 		return
-	var file = FileAccess.open(CURATED_SCENARIO_BANK_PATH, FileAccess.READ)
-	if file == null:
+		
+	_curated_templates.clear()
+	_curated_by_category.clear()
+	
+	var path = "res://data/gameplay/curated_scenarios_ph_v2_" + locale + ".json"
+	var parsed = _read_scenario_json(path)
+	if parsed.is_empty():
+		path = "res://data/gameplay/curated_scenarios_ph_v2_en.json"
+		parsed = _read_scenario_json(path)
+	if parsed.is_empty():
 		return
-	var parsed = JSON.parse_string(file.get_as_text())
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return
+		
+	_curated_loaded_locale = locale
 	var templates = parsed.get("scenarios", [])
 	if typeof(templates) != TYPE_ARRAY:
 		return
-
 	for raw in templates:
 		if typeof(raw) != TYPE_DICTIONARY:
 			continue
 		var template: Dictionary = raw
 		var category = String(template.get("category", template.get("type", "fire")))
 		if not _curated_by_category.has(category):
-			continue
+			_curated_by_category[category] = []
 		_curated_templates.append(template)
-		var bucket: Array = _curated_by_category.get(category, [])
+		var bucket: Array = _curated_by_category[category]
 		bucket.append(template)
-		_curated_by_category[category] = bucket
 
 func _pick_category_for_day(day_number: int = 1) -> String:
 	var day = max(1, day_number)
 	var fire_cutoff = max(28, 42 - ((day - 1) * 2))
 	var medical_cutoff = min(82, fire_cutoff + 31)
-	var roll = _rng.randi_range(0, 99)
-	if roll < fire_cutoff:
-		return "fire"
-	if roll < medical_cutoff:
-		return "medical"
-	return "criminal"
+	
+	for attempt in range(10):
+		var roll = _rng.randi_range(0, 99)
+		var chosen = ""
+		if roll < fire_cutoff:
+			chosen = "fire"
+		elif roll < medical_cutoff:
+			chosen = "medical"
+		else:
+			chosen = "criminal"
+			
+		if chosen == _last_played_category and attempt < 9:
+			continue
+		return chosen
+		
+	var fallback_options = ["fire", "medical", "criminal"]
+	fallback_options.erase(_last_played_category)
+	if fallback_options.size() > 0:
+		return fallback_options[_rng.randi_range(0, fallback_options.size() - 1)]
+	return "medical"
 
 func _pick_severity_for_day(day_number: int = 1) -> String:
 	var day = max(1, day_number)
@@ -284,12 +412,7 @@ func _safe_strategy_signature_from_template(template: Dictionary) -> String:
 			continue
 		var opt: Dictionary = raw_opt
 		if String(opt.get("label", "")).to_lower() == "safe":
-			var text = String(opt.get("text", "")).to_lower().strip_edges()
-			for ch in [",", ".", ";", ":", "!", "?", "\"", "'", "-", "(", ")", "[", "]"]:
-				text = text.replace(ch, " ")
-			while text.find("  ") >= 0:
-				text = text.replace("  ", " ")
-			return text
+			return _normalize_option_text(String(opt.get("text", "")))
 	return String(template.get("id", "unknown_safe_strategy"))
 
 func _remember_safe_strategy(signature: String) -> void:
@@ -299,6 +422,84 @@ func _remember_safe_strategy(signature: String) -> void:
 	if _recent_safe_strategy_signatures.size() > RECENT_SAFE_STRATEGY_MEMORY:
 		_recent_safe_strategy_signatures.pop_front()
 
+# Normalize an option text to a compact, lowercase token for signature matching.
+func _normalize_option_text(raw: String) -> String:
+	var text = raw.to_lower().strip_edges()
+	for ch in [",", ".", ";", ":", "!", "?", "\"", "'", "-", "(", ")", "[", "]"]:
+		text = text.replace(ch, " ")
+	while text.find("  ") >= 0:
+		text = text.replace("  ", " ")
+	return text
+
+func _get_template_id(template: Dictionary) -> String:
+	return String(template.get("id", ""))
+
+func _build_shuffled_deck(pool: Array, last_played_id: String) -> Array:
+	var deck: Array = []
+	for template in pool:
+		deck.append(template)
+		deck.append(template)
+	
+	if deck.is_empty():
+		return deck
+		
+	var max_attempts = 100
+	var valid_deck = false
+	for attempt in range(max_attempts):
+		deck.shuffle()
+		valid_deck = true
+		
+		# In Godot, pop_back() gets the last element, so deck.back() is drawn first.
+		if last_played_id != "" and deck.size() > 0 and _get_template_id(deck.back()) == last_played_id:
+			valid_deck = false
+			continue
+			
+		for i in range(1, deck.size()):
+			if _get_template_id(deck[i]) == _get_template_id(deck[i-1]):
+				valid_deck = false
+				break
+				
+		if valid_deck:
+			break
+			
+	if not valid_deck and deck.size() > 2:
+		# Fallback: forcefully separate adjacent duplicates
+		for i in range(1, deck.size()):
+			if _get_template_id(deck[i]) == _get_template_id(deck[i-1]):
+				for j in range(deck.size()):
+					if i != j and i-1 != j:
+						var j_id = _get_template_id(deck[j])
+						var safe_left = true
+						var safe_right = true
+						if i > 0 and _get_template_id(deck[i-1]) == j_id: safe_left = false
+						if i < deck.size()-1 and _get_template_id(deck[i+1]) == j_id: safe_right = false
+						
+						var i_id = _get_template_id(deck[i])
+						var j_safe_left = true
+						var j_safe_right = true
+						if j > 0 and _get_template_id(deck[j-1]) == i_id: j_safe_left = false
+						if j < deck.size()-1 and _get_template_id(deck[j+1]) == i_id: j_safe_right = false
+						
+						if safe_left and safe_right and j_safe_left and j_safe_right:
+							var temp = deck[i]
+							deck[i] = deck[j]
+							deck[j] = temp
+							break
+							
+	return deck
+
+func _get_next_from_deck(deck_key: String, pool: Array) -> Dictionary:
+	if not _scenario_decks.has(deck_key) or _scenario_decks[deck_key].is_empty():
+		var last_played = _last_played_template_ids.get(deck_key, "")
+		_scenario_decks[deck_key] = _build_shuffled_deck(pool, last_played)
+		
+	if _scenario_decks[deck_key].is_empty():
+		return {}
+		
+	var template = _scenario_decks[deck_key].pop_back()
+	_last_played_template_ids[deck_key] = _get_template_id(template)
+	return template
+
 func _pick_curated_template_without_repeat(category: String) -> Dictionary:
 	var pool: Array = _curated_by_category.get(category, [])
 	if pool.is_empty():
@@ -306,25 +507,8 @@ func _pick_curated_template_without_repeat(category: String) -> Dictionary:
 	if pool.is_empty():
 		return {}
 
-	var filtered: Array = []
-	for entry in pool:
-		if typeof(entry) != TYPE_DICTIONARY:
-			continue
-		var template: Dictionary = entry
-		var template_id = String(template.get("id", ""))
-		var signature = _scenario_signature({
-			"type": String(template.get("category", template.get("type", "unknown"))),
-			"template_id": template_id,
-			"title": String(template.get("title", ""))
-		})
-		var safe_signature = _safe_strategy_signature_from_template(template)
-		if (template_id == "" or not _recent_template_ids.has(template_id)) and not _recent_scenario_signatures.has(signature) and not _recent_safe_strategy_signatures.has(safe_signature):
-			filtered.append(template)
-
-	if filtered.is_empty():
-		filtered = pool
-
-	return filtered[_rng.randi_range(0, filtered.size() - 1)]
+	var deck_key = "curated_" + category
+	return _get_next_from_deck(deck_key, pool)
 
 func _pick_template_without_repeat(category: String) -> Dictionary:
 	var pool: Array = _bank_by_category.get(category, [])
@@ -333,24 +517,8 @@ func _pick_template_without_repeat(category: String) -> Dictionary:
 	if pool.is_empty():
 		return {}
 
-	var filtered: Array = []
-	for entry in pool:
-		if typeof(entry) != TYPE_DICTIONARY:
-			continue
-		var template: Dictionary = entry
-		var template_id = String(template.get("id", ""))
-		var signature = _scenario_signature({
-			"type": String(template.get("category", template.get("type", "unknown"))),
-			"template_id": template_id,
-			"title": String(template.get("title", ""))
-		})
-		if (template_id == "" or not _recent_template_ids.has(template_id)) and not _recent_scenario_signatures.has(signature):
-			filtered.append(template)
-
-	if filtered.is_empty():
-		filtered = pool
-
-	var picked: Dictionary = filtered[_rng.randi_range(0, filtered.size() - 1)]
+	var deck_key = "bank_" + category
+	var picked: Dictionary = _get_next_from_deck(deck_key, pool)
 	var picked_id = String(picked.get("id", ""))
 	if picked_id != "":
 		_recent_template_ids.append(picked_id)
@@ -387,11 +555,23 @@ func _build_scenario_from_template(template: Dictionary, mode_id: String, locale
 	for raw_line in transcript_src:
 		if typeof(raw_line) == TYPE_DICTIONARY:
 			var line = raw_line
-			var line_text = String(line.get("text", "")).replace("{location}", location)
-			transcript.append({
-				"speaker": String(line.get("speaker", "Caller")),
-				"text": line_text
-			})
+			# Options-based 911 turns (new Scenario Bank format) — preserve as-is
+			if line.has("options"):
+				var raw_opts: Array = line.get("options", [])
+				var resolved_opts: Array = []
+				for raw_opt in raw_opts:
+					if typeof(raw_opt) == TYPE_DICTIONARY:
+						resolved_opts.append(raw_opt)
+				transcript.append({
+					"speaker": String(line.get("speaker", "911")),
+					"options": resolved_opts
+				})
+			else:
+				var line_text = String(line.get("text", "")).replace("{location}", location)
+				transcript.append({
+					"speaker": String(line.get("speaker", "Caller")),
+					"text": line_text
+				})
 		elif typeof(raw_line) == TYPE_STRING:
 			var line_str: String = String(raw_line).replace("{location}", location)
 			var speaker := "Caller"
@@ -406,7 +586,7 @@ func _build_scenario_from_template(template: Dictionary, mode_id: String, locale
 			})
 
 	var options: Array = []
-	if mode_id != "certified_nlp_dispatch":
+	if mode_id != "profressional_nlp_dispatch":
 		var shuffled_options: Array = template.get("options", []).duplicate(true)
 		shuffled_options.shuffle()
 		for raw_opt in shuffled_options:

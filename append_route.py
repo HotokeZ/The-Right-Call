@@ -1,0 +1,10 @@
+﻿with open('scripts/maps/route_scene.gd', 'a', encoding='utf-8') as f:
+    f.write("\nfunc _get_scenario_options() -> Array:\n")
+    f.write("\tif _active_call.is_empty(): return []\n")
+    f.write("\tvar transcript: Array = _active_call.get(\"transcript\", [])\n")
+    f.write("\tif transcript.is_empty() and _active_call.has(\"transcript_en\"):\n")
+    f.write("\t\ttranscript = _active_call.get(\"transcript_en\", [])\n")
+    f.write("\tfor i in range(transcript.size() - 1, -1, -1):\n")
+    f.write("\t\tif typeof(transcript[i]) == TYPE_DICTIONARY and transcript[i].has(\"options\"):\n")
+    f.write("\t\t\treturn transcript[i].get(\"options\", [])\n")
+    f.write("\treturn _active_call.get(\"options\", [])\n")

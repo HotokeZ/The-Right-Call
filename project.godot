@@ -11,20 +11,26 @@ config_version=5
 [application]
 
 config/name="New Game Project"
-run/main_scene="res://scenes/ui/main_menu.tscn"
+run/main_scene="res://scenes/ui/splash_screen.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://assets/app/icon.svg"
 
 [autoload]
 
 GameState="*res://scripts/systems/game_state.gd"
+AudioManager="*res://scripts/systems/audio_manager.gd"
 
 [display]
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 window/handheld/orientation="sensor_landscape"
+
+[gui]
+
+theme/custom_font="res://assets/Fonts/VCR_OSD_MONO_1.001.ttf"
 
 [input_devices]
 
@@ -36,6 +42,7 @@ pointing/emulate_touch_from_mouse=true
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"

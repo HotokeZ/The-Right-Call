@@ -2,7 +2,7 @@ import urllib.request
 import json
 import sys
 
-API_KEY = "YOUR_GROQ_API_KEY_HERE"  # Replace with your actual API key
+API_KEY = "YOUR_API_KEY_HERE"
 
 payload = {
     "model": "llama-3.3-70b-versatile",

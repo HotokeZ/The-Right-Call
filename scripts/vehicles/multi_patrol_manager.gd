@@ -8,19 +8,21 @@ signal response_position_updated(vehicle_id: String, world_position: Vector2)
 @export var station_file_path: String = "res://data/gameplay/service_stations.json"
 @export var image_width: int = 1024
 @export var image_height: int = 1024
-@export var max_cars: int = 5
+@export var min_cars_per_type: int = 1
+@export var max_cars_per_type: int = 2
 @export var default_speed_kph: float = 125.0
 @export var disappear_km: float = 100.0
 @export var respawn_delay_min: float = 5.0
 @export var respawn_delay_max: float = 10.0
 @export var dispatch_from_station_only: bool = true
-@export var professional_response_speed_kph: float = 120.0
+@export var professional_response_speed_kph: float = 312.5
 @export var route_graph_link_radius_px: float = 48.0
 @export var route_graph_max_shortcuts_per_node: int = 4
 @export var route_graph_cell_size_px: float = 64.0
 @export var route_graph_max_nearest_rings: int = 3
 
 var route_points: Array = []
+var route_edges: Array = []  # Explicit edges from JSON [i, j] pairs
 var regions = {
 	"north": [],
 	"east": [],
@@ -42,19 +44,22 @@ var vehicle_colors = {
 	"ambulance": Color8(10, 200, 40)
 }
 
-# Approximate real facilities converted from web mercator bounds.
-# BFP candidate was outside map east bound, so we clamp to map edge.
+# NOTE: building_pixels and _service_bases_norm are legacy fallbacks only.
+# Station positions are loaded from station_file_path JSON at runtime.
+# These hardcoded values are only used when no JSON station data is available.
+var building_pixels = {}  # cleared to force JSON-loaded positions
+
 var _service_bases_norm = {
-	"ambulance": Vector2(0.732, 0.545), # Laguna Medical Center area
-	"police": Vector2(0.539, 0.518), # Camp Paciano Rizal / police area
-	"fire_truck": Vector2(0.5463, 0.4813) # BFP Santa Cruz Fire Station (maps link)
+	"ambulance": Vector2(0.5, 0.5),
+	"police": Vector2(0.5, 0.5),
+	"fire_truck": Vector2(0.5, 0.5)
 }
 
 func _ready() -> void:
 	_rng.randomize()
 	# Keep startup cheap on web/mobile-class devices.
 	if OS.has_feature("web"):
-		max_cars = min(max_cars, 3)
+		max_cars_per_type = min(max_cars_per_type, 2)
 		route_graph_max_shortcuts_per_node = min(route_graph_max_shortcuts_per_node, 2)
 		route_graph_link_radius_px = min(route_graph_link_radius_px, 40.0)
 		route_graph_max_nearest_rings = min(route_graph_max_nearest_rings, 2)
@@ -66,9 +71,11 @@ func _ready() -> void:
 	_load_bounds()
 	_partition_regions()
 	# stagger initial spawns with slight randomness
-	for i in range(max_cars):
-		var seeded_type = vehicle_types[i % max(1, vehicle_types.size())]
-		_spawn_with_delay(i * 0.8 + _rng.randf_range(0.0, 0.5), seeded_type)
+	var delay = 0.0
+	for vtype in vehicle_types:
+		for i in range(min_cars_per_type):
+			_spawn_with_delay(delay + _rng.randf_range(0.0, 0.5), vtype)
+			delay += 0.8
 
 func _load_service_stations() -> void:
 	_service_stations.clear()
@@ -124,16 +131,23 @@ func _closest_route_px_point(px_point: Vector2) -> Vector2:
 	return _route_px_points[best_idx]
 
 func _snap_service_stations_to_route_points() -> void:
+	# x/y = building center (for pin display) — do NOT overwrite.
+	# spawn_x/spawn_y = nearest road tile (for vehicle spawning).
+	# If spawn_x/spawn_y are already set from JSON, use them as-is.
+	# If missing (old JSON format), snap x/y to nearest road and store as spawn_x/spawn_y.
 	if _service_stations.is_empty() or _route_px_points.is_empty():
 		return
 	for i in range(_service_stations.size()):
 		var st: Dictionary = _service_stations[i]
+		if st.has("spawn_x") and st.has("spawn_y"):
+			continue  # spawn point already set in JSON, skip
+		# Legacy fallback: snap building center to nearest road for spawn
 		var nx = clamp(float(st.get("x", 0.5)), 0.0, 1.0)
 		var ny = clamp(float(st.get("y", 0.5)), 0.0, 1.0)
 		var raw_px = Vector2(nx * float(image_width), ny * float(image_height))
 		var snapped_px = _closest_route_px_point(raw_px)
-		st["x"] = clamp(snapped_px.x / float(max(1, image_width)), 0.0, 1.0)
-		st["y"] = clamp(snapped_px.y / float(max(1, image_height)), 0.0, 1.0)
+		st["spawn_x"] = clamp(snapped_px.x / float(max(1, image_width)), 0.0, 1.0)
+		st["spawn_y"] = clamp(snapped_px.y / float(max(1, image_height)), 0.0, 1.0)
 		_service_stations[i] = st
 
 func load_route() -> void:
@@ -156,8 +170,14 @@ func load_route() -> void:
 
 	if typeof(root) == TYPE_DICTIONARY and root.has("points"):
 		route_points = root.get("points")
+		# Also load explicit edges if present (prevents diagonal shortcuts)
+		if root.has("edges"):
+			route_edges = root.get("edges")
+		else:
+			route_edges = []
 	elif typeof(root) == TYPE_ARRAY:
 		route_points = root
+		route_edges = []
 	else:
 		push_error("Route data does not contain points")
 		return
@@ -229,16 +249,23 @@ func _spawn_with_delay(delay: float, preferred_type: String = "") -> void:
 	_spawn_car(preferred_type)
 
 func _spawn_car(preferred_type: String = "") -> void:
-	# Keep at most max_cars active
-	if active_cars.size() >= max_cars:
-		# schedule another try
-		_spawn_with_delay(_rng.randf_range(respawn_delay_min, respawn_delay_max))
-		return
-
-	# Choose vehicle type (duplicates allowed)
+	# Choose vehicle type
 	var vtype = preferred_type
 	if not vehicle_types.has(vtype):
-		vtype = vehicle_types[_rng.randi_range(0, vehicle_types.size() - 1)]
+		var available = []
+		for t in vehicle_types:
+			if _count_active_cars_of_type(t) < max_cars_per_type:
+				available.append(t)
+		if available.is_empty():
+			# Capacity full — schedule a retry.
+			_spawn_with_delay(_rng.randf_range(respawn_delay_min, respawn_delay_max))
+			return
+		vtype = available[_rng.randi_range(0, available.size() - 1)]
+	else:
+		if _count_active_cars_of_type(vtype) >= max_cars_per_type:
+			_spawn_with_delay(_rng.randf_range(respawn_delay_min, respawn_delay_max))
+			return
+
 	var vcolor = vehicle_colors.get(vtype, Color8(255, 255, 255))
 
 	# Spawn patrol from its designated station and move out along a random direction.
@@ -254,32 +281,52 @@ func _spawn_car(preferred_type: String = "") -> void:
 	car.vehicle_type = vtype
 	car.color = vcolor
 	# set up the car
-	var start_frac = 0.0
-	car.setup(seg, _map_bounds, image_width, image_height, vcolor, default_speed_kph, disappear_km, start_frac)
+	var start_frac = -1.0
+	car.setup(seg, _map_bounds, image_width, image_height, vcolor, default_speed_kph, disappear_km, 0.0)
 	car.connect("finished", Callable(self, "_on_car_finished"))
 	add_child(car)
 	active_cars.append(car)
 
-	# Spawn next car later if we still have capacity
-	if active_cars.size() < max_cars:
-		_spawn_with_delay(_rng.randf_range(respawn_delay_min, respawn_delay_max))
+	# Try to spawn next car if we still have capacity overall
+	_spawn_with_delay(_rng.randf_range(respawn_delay_min, respawn_delay_max))
 
 func _route_slice_from_station(vtype: String, min_len: int = 240, max_len: int = 420) -> Array:
-	if route_points.is_empty():
+	"""Build a road-only patrol path starting from the station using graph-based random walk."""
+	if _route_px_points.is_empty() or not _route_graph_ready:
 		return []
-	var n = route_points.size()
-	var base_px = _norm_to_px(_base_norm_for_type(vtype))
-	var base_idx = _closest_route_index_to_point(base_px)
-	var dir = 1
-	if _rng.randf() < 0.5:
-		dir = -1
-	var slice_len = _rng.randi_range(min_len, max_len)
+
+	# Find the start index: the route node closest to the station's spawn point (road tile)
+	var base_px = _norm_to_px(_spawn_norm_for_type(vtype))
+	var start_idx = _closest_route_index_for_px(base_px)
+
+	# Walk the road graph randomly, following actual edges, for slice_len steps
+	var steps = _rng.randi_range(min_len, max_len)
+	var visited_order: Array = [start_idx]
+	var current_idx = start_idx
+	var prev_idx = -1
+
+	for _step in range(steps):
+		# Get all connected neighbours from AStar graph
+		var neighbours = _route_astar.get_point_connections(current_idx)
+		if neighbours.size() == 0:
+			break
+			
+		var valid_neighbours = []
+		for n in neighbours:
+			if n != prev_idx or neighbours.size() == 1:
+				valid_neighbours.append(n)
+				
+		# Pick a random neighbour
+		var next_idx = int(valid_neighbours[_rng.randi_range(0, valid_neighbours.size() - 1)])
+		visited_order.append(next_idx)
+		prev_idx = current_idx
+		current_idx = next_idx
+
+	# Convert node indices to route_points entries for patrol_car.setup()
 	var seg: Array = []
-	for step in range(slice_len):
-		var idx = (base_idx + dir * step) % n
-		if idx < 0:
-			idx += n
-		seg.append(route_points[idx])
+	for idx in visited_order:
+		if idx >= 0 and idx < route_points.size():
+			seg.append(route_points[idx])
 	return seg
 
 func _norm_to_px(norm_pos: Vector2) -> Vector2:
@@ -288,10 +335,37 @@ func _norm_to_px(norm_pos: Vector2) -> Vector2:
 	return Vector2(nx * float(image_width), ny * float(image_height))
 
 func _base_norm_for_type(vtype: String) -> Vector2:
+	# FIRST: use loaded station data (x/y = building center for pin display)
+	for st_any in _service_stations:
+		var st = st_any as Dictionary
+		if String(st.get("type", "")) == vtype:
+			var nx = float(st.get("x", 0.5))
+			var ny = float(st.get("y", 0.5))
+			return Vector2(nx, ny)
+	# Fallback: legacy hardcoded positions
+	if building_pixels.has(vtype):
+		var px = building_pixels[vtype]
+		var ref_w = max(float(image_width), 2048.0)
+		var ref_h = max(float(image_height), 2048.0)
+		return Vector2(px.x / ref_w, px.y / ref_h)
 	var base = _service_bases_norm.get(vtype, Vector2(0.5, 0.5))
 	if base is Vector2:
 		return base
 	return Vector2(0.5, 0.5)
+
+func _spawn_norm_for_type(vtype: String) -> Vector2:
+	"""Returns the normalized spawn position (nearest road tile) for a vehicle type.
+	This is where vehicles physically appear when spawning from the station."""
+	# Check for spawn_x/spawn_y in loaded station data first
+	for st_any in _service_stations:
+		var st = st_any as Dictionary
+		if String(st.get("type", "")) == vtype:
+			if st.has("spawn_x") and st.has("spawn_y"):
+				return Vector2(float(st.get("spawn_x")), float(st.get("spawn_y")))
+			# Fall back to building center if no explicit spawn point
+			return Vector2(float(st.get("x", 0.5)), float(st.get("y", 0.5)))
+	# Final fallback
+	return _base_norm_for_type(vtype)
 
 func _closest_route_index_to_point(px_point: Vector2) -> int:
 	if _route_graph_ready:
@@ -330,11 +404,11 @@ func _start_fraction_for_vehicle_type(vtype: String) -> float:
 func _vehicle_icon_path(vtype: String) -> String:
 	match vtype:
 		"fire_truck":
-			return "res://assets/ui/icons/fire_truck.svg"
+			return "res://assets/The Right Call Sprites/firetrucksprite.png"
 		"ambulance":
-			return "res://assets/ui/icons/ambulance.svg"
+			return "res://assets/The Right Call Sprites/ambulancesprite.png"
 		_:
-			return "res://assets/ui/icons/police.svg"
+			return "res://assets/The Right Call Sprites/policeeesprite.png"
 
 func _vehicle_name(vtype: String) -> String:
 	match vtype:
@@ -348,8 +422,8 @@ func _vehicle_name(vtype: String) -> String:
 func get_service_station_markers() -> Array:
 	var out: Array = []
 	if _service_stations.is_empty():
-		for k in _service_bases_norm.keys():
-			var norm: Vector2 = _service_bases_norm[k]
+		for k in vehicle_types:
+			var norm: Vector2 = _base_norm_for_type(k)
 			out.append({
 				"type": String(k),
 				"name": _vehicle_name(String(k)) + " Station",
@@ -436,7 +510,30 @@ func dispatch_response_unit(vtype: String, target_world: Vector2, travel_s: floa
 
 	var responder = Node2D.new()
 	responder.position = source
-	add_child(responder)
+	var anim_script = GDScript.new()
+	anim_script.source_code = """
+extends Node2D
+var _sprite: Sprite2D
+var _anim_timer: float = 0.0
+var _prev_pos: Vector2
+func _ready():
+	_prev_pos = position
+	for c in get_children():
+		if c is Sprite2D:
+			_sprite = c
+			break
+func _process(delta):
+	if _sprite:
+		_anim_timer += delta * 10.0
+		_sprite.frame = int(_anim_timer) % 4
+		if position.x < _prev_pos.x - 0.1:
+			_sprite.flip_h = true
+		elif position.x > _prev_pos.x + 0.1:
+			_sprite.flip_h = false
+	_prev_pos = position
+"""
+	anim_script.reload()
+	responder.set_script(anim_script)
 
 	var icon_path = _vehicle_icon_path(vtype)
 	if ResourceLoader.exists(icon_path):
@@ -444,8 +541,16 @@ func dispatch_response_unit(vtype: String, target_world: Vector2, travel_s: floa
 		if tex is Texture2D:
 			var sprite = Sprite2D.new()
 			sprite.texture = tex
-			sprite.scale = Vector2(0.62, 0.62)
+			sprite.hframes = 4
+			sprite.scale = Vector2(2.0, 2.0)
 			responder.add_child(sprite)
+			
+	add_child(responder)
+
+	# ── Siren ─────────────────────────────────────────────────────────────
+	var am = get_node_or_null("/root/AudioManager")
+	if am:
+		am.play_siren(responder, vtype)
 
 	# Find a path using route waypoints instead of direct line
 	var path = _find_path_through_route(source, target_world)
@@ -470,10 +575,14 @@ func dispatch_response_unit(vtype: String, target_world: Vector2, travel_s: floa
 		var segment_time = max(0.08, (segment_dist / total_dist) * max(0.25, travel_s))
 		tween.tween_method(Callable(self, "_set_responder_position").bind(responder, vtype), a, b, segment_time)
 
-	# Emit arrival exactly when responder reaches destination, before fade-out.
+	# Stop siren and emit arrival exactly when responder reaches destination, then fade out.
+	tween.tween_callback(func():
+		if am:
+			am.stop_siren(responder))
 	tween.tween_callback(Callable(self, "_emit_response_arrived").bind(vtype, target_world))
 	tween.tween_property(responder, "modulate:a", 0.0, 0.25)
 	tween.finished.connect(responder.queue_free)
+
 
 func _travel_time_from_source_to_target_s(source: Vector2, target_world: Vector2) -> float:
 	if _map_bounds.is_empty():
@@ -536,39 +645,50 @@ func _build_route_graph() -> void:
 		_route_astar.add_point(i, p)
 		_add_point_to_spatial_index(i, p)
 
-	# Always keep route continuity with sequential links.
-	for i in range(total_points - 1):
-		if not _route_astar.are_points_connected(i, i + 1):
-			_route_astar.connect_points(i, i + 1, true)
+	# If the JSON supplies explicit edges, use those ONLY — no shortcuts.
+	# This enforces strict road-only navigation (no diagonal cuts).
+	if not route_edges.is_empty():
+		for edge_any in route_edges:
+			if typeof(edge_any) == TYPE_ARRAY and (edge_any as Array).size() >= 2:
+				var ea = edge_any as Array
+				var i = int(ea[0])
+				var j = int(ea[1])
+				if i >= 0 and i < total_points and j >= 0 and j < total_points:
+					if not _route_astar.are_points_connected(i, j):
+						_route_astar.connect_points(i, j, true)
+	else:
+		# Fallback: sequential links + radius-based shortcuts (old behaviour)
+		for i in range(total_points - 1):
+			if not _route_astar.are_points_connected(i, i + 1):
+				_route_astar.connect_points(i, i + 1, true)
 
-	# Add limited local shortcuts using a spatial hash to avoid O(n^2) neighbor checks.
-	var radius = max(8.0, route_graph_link_radius_px)
-	var radius_sq = radius * radius
-	var max_shortcuts = max(0, route_graph_max_shortcuts_per_node)
-	for i in range(total_points):
-		var pi = _route_px_points[i] as Vector2
-		var candidates = _collect_candidates_in_radius(pi, radius)
-		var nearby: Array = []
-		for c_any in candidates:
-			var j = int(c_any)
-			if j == i:
-				continue
-			if abs(j - i) <= 1:
-				continue
-			var pj = _route_px_points[j] as Vector2
-			var dsq = pi.distance_squared_to(pj)
-			if dsq <= radius_sq:
-				nearby.append({"idx": j, "dist": dsq})
+		var radius = max(8.0, route_graph_link_radius_px)
+		var radius_sq = radius * radius
+		var max_shortcuts = max(0, route_graph_max_shortcuts_per_node)
+		for i in range(total_points):
+			var pi = _route_px_points[i] as Vector2
+			var candidates = _collect_candidates_in_radius(pi, radius)
+			var nearby: Array = []
+			for c_any in candidates:
+				var j = int(c_any)
+				if j == i:
+					continue
+				if abs(j - i) <= 1:
+					continue
+				var pj = _route_px_points[j] as Vector2
+				var dsq = pi.distance_squared_to(pj)
+				if dsq <= radius_sq:
+					nearby.append({"idx": j, "dist": dsq})
 
-		nearby.sort_custom(func(a, b): return float(a["dist"]) < float(b["dist"]))
-		var added = 0
-		for item in nearby:
-			if added >= max_shortcuts:
-				break
-			var j = int(item["idx"])
-			if not _route_astar.are_points_connected(i, j):
-				_route_astar.connect_points(i, j, true)
-				added += 1
+			nearby.sort_custom(func(a, b): return float(a["dist"]) < float(b["dist"]))
+			var added = 0
+			for item in nearby:
+				if added >= max_shortcuts:
+					break
+				var j = int(item["idx"])
+				if not _route_astar.are_points_connected(i, j):
+					_route_astar.connect_points(i, j, true)
+					added += 1
 
 	_route_graph_ready = true
 
@@ -711,11 +831,18 @@ func _region_load_cmp(a, b) -> int:
 	return a_count - b_count
 
 func _on_car_finished(car: Node) -> void:
+	var vtype = ""
+	if car.has_method("get") and car.get("vehicle_type") != null:
+		vtype = String(car.get("vehicle_type"))
 	# remove from active list if present
 	if car in active_cars:
 		active_cars.erase(car)
-	# schedule a replacement spawn
-	_spawn_with_delay(_rng.randf_range(respawn_delay_min, respawn_delay_max))
+	# schedule a replacement spawn of the same type so fleet stays balanced
+	var delay = _rng.randf_range(respawn_delay_min, respawn_delay_max)
+	if vtype != "":
+		_spawn_with_delay(delay, vtype)
+	else:
+		_spawn_with_delay(delay)
 
 func stop_all() -> void:
 	for car in active_cars:
@@ -723,15 +850,39 @@ func stop_all() -> void:
 			car.stop_and_remove()
 	active_cars.clear()
 
+# ── Helper: count active patrol cars of a given type ─────────────────────────
+func _count_active_cars_of_type(vtype: String) -> int:
+	var count = 0
+	for car in active_cars:
+		if car and car.is_inside_tree() and String(car.get("vehicle_type")) == vtype:
+			count += 1
+	return count
 
 func _random_route_slice(min_len: int = 200, max_len: int = 400) -> Array:
-	if route_points.size() == 0:
+	"""Graph-based random walk from a random road node — stays strictly on roads."""
+	if _route_px_points.is_empty() or not _route_graph_ready:
 		return []
-	var slice_len = _rng.randi_range(min_len, max_len)
-	var start = _rng.randi_range(0, max(0, route_points.size() - slice_len))
+	var steps = _rng.randi_range(min_len, max_len)
+	var start_idx = _rng.randi_range(0, _route_px_points.size() - 1)
+	var visited_order: Array = [start_idx]
+	var current_idx = start_idx
+	var prev_idx = -1
+	for _step in range(steps):
+		var neighbours = _route_astar.get_point_connections(current_idx)
+		if neighbours.size() == 0:
+			break
+		var valid_neighbours = []
+		for n in neighbours:
+			if n != prev_idx or neighbours.size() == 1:
+				valid_neighbours.append(n)
+		var next_idx = int(valid_neighbours[_rng.randi_range(0, valid_neighbours.size() - 1)])
+		visited_order.append(next_idx)
+		prev_idx = current_idx
+		current_idx = next_idx
 	var seg: Array = []
-	for i in range(start, min(start + slice_len, route_points.size())):
-		seg.append(route_points[i])
+	for idx in visited_order:
+		if idx >= 0 and idx < route_points.size():
+			seg.append(route_points[idx])
 	return seg
 
 

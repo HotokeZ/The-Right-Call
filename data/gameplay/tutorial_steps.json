@@ -39,9 +39,9 @@
       "coach_tip": "Use this as the default onboarding mode for first-time players."
     },
     {
-      "id": "certified_mode_intro",
-      "title": "Certified Mode Uses Typed Answers",
-      "body": "The typed NLP mode is for certified learners inside the e-learning flow. Players must complete the required certification before they can unlock free-response dispatching.",
+      "id": "profressional_mode_intro",
+      "title": "Profressional Mode Uses Typed Answers",
+      "body": "The typed NLP mode is for profressional learners inside the e-learning flow. Players must complete the required certification before they can unlock free-response dispatching.",
       "coach_tip": "This keeps advanced assessment gated behind training readiness."
     }
   ]

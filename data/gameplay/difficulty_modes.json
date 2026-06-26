@@ -12,8 +12,8 @@
       "locale_support": ["en", "tl", "taglish"]
     },
     {
-      "id": "certified_nlp_dispatch",
-      "title": "Certified Dispatcher",
+      "id": "profressional_nlp_dispatch",
+      "title": "Profressional Dispatcher",
       "description": "Free-response emergency handling powered by NLP evaluation.",
       "input_style": "typed_nlp",
       "unlocked_by_default": false,

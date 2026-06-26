@@ -80,28 +80,34 @@ theme_override_constants/margin_top = 24
 theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 24
 
-[node name="VBox" type="VBoxContainer" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin"]
+[node name="QuizScroll" type="ScrollContainer" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin"]
 layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="VBox" type="VBoxContainer" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/QuizScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 24
 
-[node name="QuestionCountLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/VBox"]
+[node name="QuestionCountLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/QuizScroll/VBox"]
 layout_mode = 2
+autowrap_mode = 3
 text = "Question 1 of 5"
 theme_override_colors/font_color = Color(0.254902, 0.34902, 0.462745, 1)
 theme_override_font_sizes/font_size = 18
 
-[node name="QuestionLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/VBox"]
+[node name="QuestionLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/QuizScroll/VBox"]
 layout_mode = 2
 autowrap_mode = 3
 text = "What is the best way to handle a grease fire on the stove?"
 theme_override_colors/font_color = Color(0.1, 0.1, 0.1, 1)
 theme_override_font_sizes/font_size = 24
 
-[node name="ChoicesBox" type="VBoxContainer" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/VBox"]
+[node name="ChoicesBox" type="VBoxContainer" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/QuizScroll/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="FeedbackLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/VBox"]
+[node name="FeedbackLabel" type="Label" parent="CanvasLayer/Root/Margin/Layout/Body/BodyMargin/QuizScroll/VBox"]
 layout_mode = 2
 autowrap_mode = 3
 text = ""

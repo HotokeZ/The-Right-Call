@@ -1,0 +1,2701 @@
+{
+    "scenarios": [
+        {
+            "id": "sb_fire_001",
+            "category": "fire",
+            "title": "Kitchen Grease Fire",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! My pan of cooking oil caught fire on the stove at {location}! Flames are everywhere!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Turn off the stove and cover the pan with a metal lid to smother the flames.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Turn off the stove and use a fire blanket if you have one.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Pour water on the pan to extinguish it.",
+                            "label": "unsafe",
+                            "explanation": "Water hits hot oil, vaporizes instantly, and causes a massive fireball that spreads the burning grease."
+                        },
+                        {
+                            "text": "Blow hard on the flames to put them out.",
+                            "label": "unsafe",
+                            "explanation": "Blowing on the flames feeds the fire with oxygen and can blow burning oil onto yourself or the kitchen."
+                        },
+                        {
+                            "text": "Carry the burning pan outside.",
+                            "label": "unsafe",
+                            "explanation": "Moving a burning pan causes the oil to slosh, dripping liquid fire on yourself and spreading it through the house."
+                        },
+                        {
+                            "text": "Throw flour or sugar on the flames.",
+                            "label": "unsafe",
+                            "explanation": "Flour and sugar dust are highly flammable and can cause a violent dust explosion when thrown into a fire."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Okay! I covered it and turned off the stove. The flames stopped but there is smoke."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Leave the house now, close doors behind you, and wait outside for BFP.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Evacuate everyone and stay outside until the fire truck arrives.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Open all windows to let the smoke out.",
+                            "label": "unsafe",
+                            "explanation": "Opening windows introduces fresh oxygen that feeds the fire and creates a draft, spreading it faster."
+                        },
+                        {
+                            "text": "Lift the lid to check if the fire is really out.",
+                            "label": "unsafe",
+                            "explanation": "Lifting the lid reintroduces oxygen, which can cause the superheated oil to immediately reignite."
+                        },
+                        {
+                            "text": "Pour water everywhere to cool the stove.",
+                            "label": "unsafe",
+                            "explanation": "Pouring water near a grease fire risks spreading the grease or causing an electrical short circuit."
+                        },
+                        {
+                            "text": "You don't need to evacuate, just stay inside.",
+                            "label": "unsafe",
+                            "explanation": "Staying inside a burning structure exposes you to toxic smoke inhalation, which is the leading cause of fire deaths."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_002",
+            "category": "fire",
+            "title": "Apartment Building Fire",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! I'm at an apartment at {location}. Huge fire, smoke everywhere, people screaming!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay below the smoke and crawl to the nearest fire exit.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Stay inside your unit, seal the door gaps with a wet cloth, signal from window.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Take the elevator down to escape faster.",
+                            "label": "unsafe",
+                            "explanation": "Elevators can fail during fires, trapping you inside a smoke-filled shaft and causing suffocation."
+                        },
+                        {
+                            "text": "Open all doors and windows to let fresh air in.",
+                            "label": "unsafe",
+                            "explanation": "Opening doors and windows creates drafts that pull the fire and smoke directly into your room."
+                        },
+                        {
+                            "text": "Go up to the roof to wait for a helicopter.",
+                            "label": "unsafe",
+                            "explanation": "Smoke and heat rise. The roof becomes incredibly toxic and hot, and helicopter rescues are extremely rare."
+                        },
+                        {
+                            "text": "Run through the smoke as fast as you can.",
+                            "label": "unsafe",
+                            "explanation": "Running through smoke increases breathing rate, leading to rapid toxic smoke inhalation and fainting."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "There is thick black smoke in the hallway! I cannot see the stairs."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Seal the door gap with wet cloth, stay low, signal from window.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Block the door gap and stay near the window for air. BFP is coming.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Try to run through the smoke now while you can.",
+                            "label": "unsafe",
+                            "explanation": "Running through smoke increases breathing rate, causing rapid carbon monoxide poisoning and fainting."
+                        },
+                        {
+                            "text": "Break the window to get more air.",
+                            "label": "unsafe",
+                            "explanation": "Breaking a window prevents you from closing it to block smoke later, and draws the fire towards your room."
+                        },
+                        {
+                            "text": "Pour water under the door and open it.",
+                            "label": "unsafe",
+                            "explanation": "Opening a hot door will let in superheated toxic smoke and flames, instantly overwhelming you."
+                        },
+                        {
+                            "text": "Go out and knock on neighbors' doors.",
+                            "label": "unsafe",
+                            "explanation": "Going into a smoke-filled hallway is deadly. Call 911 to alert them of your neighbors instead."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_003",
+            "category": "fire",
+            "title": "Garage Workshop Fire",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! My husband was grinding metal at {location} and sparks ignited a workbench soaked with motor oil!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Do not use water! Cut main power if safe, and evacuate immediately.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Use a dry chemical extinguisher if you can reach it safely, otherwise evacuate.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Use a garden hose on the workbench right now.",
+                            "label": "unsafe",
+                            "explanation": "Water conducts electricity. Spraying water on power tools will cause a severe electrical shock."
+                        },
+                        {
+                            "text": "Open the garage doors wide to push the smoke out.",
+                            "label": "unsafe",
+                            "explanation": "Opening a large garage door floods the fire with oxygen, causing it to explode in size."
+                        },
+                        {
+                            "text": "Unplug the power tools one by one.",
+                            "label": "unsafe",
+                            "explanation": "Approaching burning power tools puts you at risk of electrocution and severe burns."
+                        },
+                        {
+                            "text": "Smother the oil fire with a blanket.",
+                            "label": "unsafe",
+                            "explanation": "Using a regular blanket on a large oil fire can catch the blanket on fire and spread the burning oil."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "He got out! He is outside now. But the fire is growing fast."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep everyone outside and at least 10 meters away.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Make sure no one goes back in. Move gas tanks away if safe to do from distance.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Go back inside to save your tools.",
+                            "label": "unsafe",
+                            "explanation": "Tools are replaceable; your life is not. Toxic smoke in a garage contains lethal chemicals from plastics and oils."
+                        },
+                        {
+                            "text": "Try to close the burning garage door.",
+                            "label": "unsafe",
+                            "explanation": "Touching a burning door can cause severe burns, and staying near the fire exposes you to toxic smoke."
+                        },
+                        {
+                            "text": "Pour buckets of water through the window.",
+                            "label": "unsafe",
+                            "explanation": "Water on electrical or chemical fires will spread the fire or cause electrocution."
+                        },
+                        {
+                            "text": "Call a neighbor to bring their garden hose.",
+                            "label": "unsafe",
+                            "explanation": "Delaying evacuation to fight the fire puts both you and your neighbor in severe danger."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_004",
+            "category": "fire",
+            "title": "High-Rise Hallway Smoke",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! I'm on the 14th floor at {location}. The hallway is filled with thick smoke!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay inside with the door closed. Seal the gap with wet towels if it's not hot.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Do not go into the smoke-filled hallway. Stay inside and signal from window.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Run through the smoke to the stairwell.",
+                            "label": "unsafe",
+                            "explanation": "Moving through thick smoke without visibility leads to disorientation, toxic inhalation, and death."
+                        },
+                        {
+                            "text": "Take the elevator down.",
+                            "label": "unsafe",
+                            "explanation": "Elevator shafts act as chimneys during a fire, filling with toxic smoke and trapping occupants."
+                        },
+                        {
+                            "text": "Break the window to climb out to the ledge.",
+                            "label": "unsafe",
+                            "explanation": "Climbing onto a ledge risks a fatal fall and exposes you to flames shooting out from lower windows."
+                        },
+                        {
+                            "text": "Open the door wide to let the smoke flow through.",
+                            "label": "unsafe",
+                            "explanation": "Opening a door provides oxygen to the fire and creates a draft, pulling flames and smoke directly into the room."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Okay, I am inside. I put a wet towel under the door."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Wave a bright cloth from your window so firefighters can see you.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Keep signaling from the window. Firefighters will come to you.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Try to rope down using bedsheets.",
+                            "label": "unsafe",
+                            "explanation": "Bedsheets are not strong enough to hold human weight reliably, leading to fatal falls."
+                        },
+                        {
+                            "text": "Open the window fully and breathe deeply.",
+                            "label": "unsafe",
+                            "explanation": "Opening the window can pull smoke from other floors into your apartment. Only open slightly if necessary."
+                        },
+                        {
+                            "text": "Leave the unit and try the stairwell again.",
+                            "label": "unsafe",
+                            "explanation": "If the stairwell is full of smoke, entering it is a fatal mistake due to toxic gases."
+                        },
+                        {
+                            "text": "Pour water on the door and push through the smoke.",
+                            "label": "unsafe",
+                            "explanation": "Opening the door to a fire-involved hallway will cause a backdraft or expose you to lethal heat."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_005",
+            "category": "fire",
+            "title": "Restaurant Fryer Fire",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! I'm at a restaurant at {location}. The deep fryer flashed over to the ceiling!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Get everyone out of the kitchen and dining area immediately. Close doors behind you.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Activate the fire suppression system under the hood, then evacuate.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Keep trying to smother the fryer with towels.",
+                            "label": "unsafe",
+                            "explanation": "Dry towels will quickly catch fire. If the fire is too large, trying to smother it puts you at severe burn risk."
+                        },
+                        {
+                            "text": "Open all doors and windows to clear smoke for customers.",
+                            "label": "unsafe",
+                            "explanation": "Opening doors feeds the fire oxygen and draws the smoke and flames into the customer area."
+                        },
+                        {
+                            "text": "Send someone back in for the cash register.",
+                            "label": "unsafe",
+                            "explanation": "No amount of money is worth risking death from toxic smoke inhalation or structural collapse."
+                        },
+                        {
+                            "text": "Pour water on the hot oil fryer.",
+                            "label": "unsafe",
+                            "explanation": "Water vaporizes instantly when it hits hot oil, creating a massive fireball that spreads the burning grease."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Everyone is out! We are at the front of the building."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay outside. Do not let anyone go back in. BFP is on the way.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Make sure all customers stay far from the entrance.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Go back in to grab the fire extinguisher.",
+                            "label": "unsafe",
+                            "explanation": "If you are already out, going back inside a burning building is fatal due to rapidly accumulating toxic smoke."
+                        },
+                        {
+                            "text": "Use a garden hose to spray through the front window.",
+                            "label": "unsafe",
+                            "explanation": "Spraying water from outside can push the fire deeper into the building or create dangerous steam burns."
+                        },
+                        {
+                            "text": "Send one staff back in to check if it's safe.",
+                            "label": "unsafe",
+                            "explanation": "Never send anyone back into a burning building; the environment is highly toxic and unpredictable."
+                        },
+                        {
+                            "text": "Try to turn off the gas line inside the kitchen.",
+                            "label": "unsafe",
+                            "explanation": "Re-entering a burning kitchen to turn off the gas puts you in the direct path of the fire and potential explosions."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_006",
+            "category": "fire",
+            "title": "Pool Chemical Reaction",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! At a pool in {location}, two chemicals mixed and are releasing thick yellow gas!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Tell everyone to move upwind immediately, at least 50 meters away.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Move everyone upwind, cover mouths with wet cloth, do not touch anything.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Pour sand over the mixture.",
+                            "label": "unsafe",
+                            "explanation": "Pouring sand on an unknown chemical mixture can cause a violent reactive explosion or release toxic gas."
+                        },
+                        {
+                            "text": "Flood the spill with water.",
+                            "label": "unsafe",
+                            "explanation": "Many chemicals react violently with water, boiling instantly, exploding, or releasing deadly fumes."
+                        },
+                        {
+                            "text": "Use a fan to blow the gas away.",
+                            "label": "unsafe",
+                            "explanation": "A fan's electrical motor can spark and ignite flammable chemical fumes, causing an explosion."
+                        },
+                        {
+                            "text": "Drag the chemical buckets outside.",
+                            "label": "unsafe",
+                            "explanation": "Moving burning or reactive chemicals can spill them, spread the fire, or expose the caller to toxic and lethal fumes."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "We moved everyone upwind. Some are still coughing."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay where you are upwind. HazMat unit is dispatched.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Keep people at a safe distance. Note anyone with breathing difficulty.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Go back and close the shed door.",
+                            "label": "unsafe",
+                            "explanation": "Re-entering an area with chemical fumes can cause instant respiratory failure or loss of consciousness."
+                        },
+                        {
+                            "text": "Have someone go back to read the chemical labels.",
+                            "label": "unsafe",
+                            "explanation": "Sending someone into a toxic environment is deadly. Wait for HazMat equipped with breathing apparatus."
+                        },
+                        {
+                            "text": "Rinse eyes in the pool water.",
+                            "label": "unsafe",
+                            "explanation": "Pool water contains chlorine which can further react with the chemical in the eyes, causing blindness."
+                        },
+                        {
+                            "text": "Ventilate the shed by opening panels.",
+                            "label": "unsafe",
+                            "explanation": "Opening panels can expose the chemicals to moisture in the air or oxygen, escalating the reaction."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_007",
+            "category": "fire",
+            "title": "Downed Power Line",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! A power line snapped at {location}. It's sparking on wet grass and burning!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Tell everyone to back away 10 meters and do not touch wet ground.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Warn bystanders that electricity travels through wet ground. Stay back.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Use a wooden stick to drag the wire off the road.",
+                            "label": "unsafe",
+                            "explanation": "Even wood can conduct high-voltage electricity if slightly damp, resulting in a fatal shock."
+                        },
+                        {
+                            "text": "Throw sand on the wire.",
+                            "label": "unsafe",
+                            "explanation": "Approaching a live high-voltage wire to throw anything puts you within the arc flash zone, risking electrocution."
+                        },
+                        {
+                            "text": "Gather bystanders under a nearby roof.",
+                            "label": "unsafe",
+                            "explanation": "Gathering people near an electrical incident is unsafe; a wire snap or arc can strike from a distance."
+                        },
+                        {
+                            "text": "Use a garden hose to wet down the grass.",
+                            "label": "unsafe",
+                            "explanation": "Using a garden hose is ineffective against a spreading fire and delays evacuation, endangering the caller's life."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Okay, I told everyone to back away."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Do not fight the fire. Keep everyone away. Meralco/BFP will handle it.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Keep everyone away and clear the road.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Throw water on the burning grass.",
+                            "label": "unsafe",
+                            "explanation": "Throwing water near a downed live wire will conduct electricity back to you, causing electrocution."
+                        },
+                        {
+                            "text": "Cut the wire from the pole with insulated tools.",
+                            "label": "unsafe",
+                            "explanation": "Only trained utility workers have the proper equipment to handle high-voltage lines. Standard tools will fail."
+                        },
+                        {
+                            "text": "Stomp out the grass fire.",
+                            "label": "unsafe",
+                            "explanation": "Stomping near a downed power line puts your body in the path of stray electrical currents traveling through the ground."
+                        },
+                        {
+                            "text": "Move the metal fence away from the wire.",
+                            "label": "unsafe",
+                            "explanation": "Metal conducts electricity perfectly. Touching a metal fence near a downed wire is instantly fatal."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_008",
+            "category": "fire",
+            "title": "Barangay Market Stall Fire",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! A cooking stall at the market in {location} is on fire near LPG tanks!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Evacuate everyone at least 50 meters away immediately.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Do not try to move the LPG tanks. Get everyone away now.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Try to drag the LPG tanks out of the fire.",
+                            "label": "unsafe",
+                            "explanation": "LPG tanks in a fire can rupture and cause a BLEVE (Boiling Liquid Expanding Vapor Explosion), which is instantly lethal."
+                        },
+                        {
+                            "text": "Throw buckets of water on the LPG tanks to cool them.",
+                            "label": "unsafe",
+                            "explanation": "Approaching burning LPG tanks puts you in the immediate blast radius if they explode."
+                        },
+                        {
+                            "text": "Run into the stall to save the cash box.",
+                            "label": "unsafe",
+                            "explanation": "Entering a burning stall surrounded by LPG tanks is extremely dangerous due to the risk of an explosion."
+                        },
+                        {
+                            "text": "Use a blanket to smother the LPG tank.",
+                            "label": "unsafe",
+                            "explanation": "A blanket will not stop pressurized LPG from leaking and can trap gas, leading to a massive explosion."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "We evacuated the area. The fire is huge."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep everyone far away behind solid cover if possible.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Do not let anyone return to their stalls.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Go back to see if the tanks are expanding.",
+                            "label": "unsafe",
+                            "explanation": "If a tank is expanding, it is seconds away from a massive explosion. You must stay far away."
+                        },
+                        {
+                            "text": "Spray water from a nearby hose onto the flames.",
+                            "label": "unsafe",
+                            "explanation": "Using a garden hose requires you to get too close to pressurized tanks that could explode at any moment."
+                        },
+                        {
+                            "text": "Start moving nearby stalls away from the fire.",
+                            "label": "unsafe",
+                            "explanation": "Moving stalls wastes time and keeps you in the danger zone. Evacuate immediately."
+                        },
+                        {
+                            "text": "Try to turn the LPG tank valves off.",
+                            "label": "unsafe",
+                            "explanation": "Reaching into a fire to turn off a valve exposes you to severe burns and potential explosion."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_009",
+            "category": "fire",
+            "title": "School Laboratory Fire",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! There is a chemical fire in the science lab at {location}!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Activate the fire alarm and evacuate via the nearest marked exit.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Evacuate the classroom immediately, leaving all belongings behind.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Throw water on the chemical fire.",
+                            "label": "unsafe",
+                            "explanation": "Water spreads chemical fires and can cause explosive reactions with certain substances."
+                        },
+                        {
+                            "text": "Try to identify the burning chemicals before leaving.",
+                            "label": "unsafe",
+                            "explanation": "Inhaling burning chemical smoke for even a few seconds can be immediately fatal."
+                        },
+                        {
+                            "text": "Use the classroom curtains to smother the flames.",
+                            "label": "unsafe",
+                            "explanation": "Curtains are highly flammable and will catch fire, spreading the flames to the rest of the room."
+                        },
+                        {
+                            "text": "Run out and open all windows to let the smoke out.",
+                            "label": "unsafe",
+                            "explanation": "Opening windows introduces fresh oxygen, which will feed the fire and cause it to spread rapidly."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "The fire alarm is ringing and we are outside."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Gather at the designated assembly point outside.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Do not re-enter the building for any reason.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Go back to get your backpacks.",
+                            "label": "unsafe",
+                            "explanation": "No belongings are worth dying for. Toxic smoke fills a room rapidly and can trap you."
+                        },
+                        {
+                            "text": "Wait in the hallway outside the lab.",
+                            "label": "unsafe",
+                            "explanation": "Hallways near a fire fill with smoke quickly. You must evacuate the building entirely."
+                        },
+                        {
+                            "text": "Try to fight the fire from the doorway.",
+                            "label": "unsafe",
+                            "explanation": "Fighting a chemical fire without proper extinguishers and training exposes you to lethal toxic fumes."
+                        },
+                        {
+                            "text": "Go to the principal's office to report it.",
+                            "label": "unsafe",
+                            "explanation": "Delaying evacuation to report in person puts you in danger. Pull the alarm and call 911 from outside."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_010",
+            "category": "fire",
+            "title": "Jeepney Engine Fire",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! A jeepney engine caught fire on the highway at {location}!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Get all passengers out and move far away from the vehicle.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Evacuate the jeepney and do not open the hood.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Open the hood to see where the fire is.",
+                            "label": "unsafe",
+                            "explanation": "Opening the hood introduces a rush of oxygen that will cause the engine fire to erupt into a massive fireball."
+                        },
+                        {
+                            "text": "Pour water on the engine block.",
+                            "label": "unsafe",
+                            "explanation": "Water on a grease, oil, or fuel fire will spread the burning fuel and cause a massive flare-up."
+                        },
+                        {
+                            "text": "Stay in the jeepney until the fire truck arrives.",
+                            "label": "unsafe",
+                            "explanation": "Vehicles contain highly flammable fuels and plastics. Staying inside ensures you will be overcome by toxic smoke."
+                        },
+                        {
+                            "text": "Try to restart the engine to blow out the fire.",
+                            "label": "unsafe",
+                            "explanation": "Attempting to restart a burning engine will pump more fuel into the fire, worsening the explosion risk."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Everyone is out of the jeepney."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay far away from the road and oncoming traffic.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Warn oncoming traffic if safe to do so from a distance.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Go back to get your belongings from the jeepney.",
+                            "label": "unsafe",
+                            "explanation": "Vehicle fires spread incredibly fast. Re-entering puts you at risk of being trapped by the flames."
+                        },
+                        {
+                            "text": "Try to push the jeepney off the road.",
+                            "label": "unsafe",
+                            "explanation": "Pushing a burning vehicle keeps you dangerously close to the fuel tank, which can explode."
+                        },
+                        {
+                            "text": "Flag down other cars to use their fire extinguishers.",
+                            "label": "unsafe",
+                            "explanation": "Stopping traffic near a burning vehicle creates secondary crash hazards and delays the fire department."
+                        },
+                        {
+                            "text": "Stand next to the jeepney to take a video.",
+                            "label": "unsafe",
+                            "explanation": "Standing near a burning vehicle exposes you to toxic fumes and potential shrapnel from exploding tires or struts."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_fire_011",
+            "category": "fire",
+            "title": "Large Brush Fire",
+            "difficulty": 1,
+            "recommended_vehicle": "fire_truck",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Help! There's a massive brush fire spreading towards the subdivision at {location}!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay inside, close all windows, and prepare to evacuate if ordered.",
+                            "label": "safe",
+                            "explanation": "This is the safest immediate action."
+                        },
+                        {
+                            "text": "Turn off air conditioning to avoid drawing smoke in, stay inside.",
+                            "label": "safe",
+                            "explanation": "This keeps everyone safe."
+                        },
+                        {
+                            "text": "Go out and start spraying your roof with a garden hose.",
+                            "label": "unsafe",
+                            "explanation": "Spraying your roof delays your evacuation. If a wildfire is close, you must leave immediately."
+                        },
+                        {
+                            "text": "Drive out into the smoke to see how close the fire is.",
+                            "label": "unsafe",
+                            "explanation": "Driving into thick smoke causes you to lose visibility, crash, and become trapped by the approaching fire."
+                        },
+                        {
+                            "text": "Start burning back-fires in your yard to stop the main fire.",
+                            "label": "unsafe",
+                            "explanation": "Starting unauthorized fires will simply spread the fire faster and engulf your own property."
+                        },
+                        {
+                            "text": "Evacuate immediately through the thick smoke.",
+                            "label": "unsafe",
+                            "explanation": "Moving through thick smoke can cause fatal smoke inhalation; stay low under the smoke or shelter in place if trapped."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "We are inside our house, all windows closed."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Listen to local authorities and evacuate only when instructed.",
+                            "label": "safe",
+                            "explanation": "Good advice for waiting on responders."
+                        },
+                        {
+                            "text": "Keep a go-bag ready and wait for further instructions.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe while help arrives."
+                        },
+                        {
+                            "text": "Go out and take pictures of the fire.",
+                            "label": "unsafe",
+                            "explanation": "Wildfires move faster than you can run. Stopping to take pictures can trap you in the blaze."
+                        },
+                        {
+                            "text": "Open the windows to see the fire better.",
+                            "label": "unsafe",
+                            "explanation": "Opening windows allows flying embers to enter your home, igniting the inside immediately."
+                        },
+                        {
+                            "text": "Try to fight the fire with a garden hose.",
+                            "label": "unsafe",
+                            "explanation": "A garden hose is useless against a massive wildfire and attempting to use it will cost you your life."
+                        },
+                        {
+                            "text": "Ignore the fire, it won't reach you.",
+                            "label": "unsafe",
+                            "explanation": "Wildfires are completely unpredictable and can change direction in seconds. Always follow evacuation warnings."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_001",
+            "category": "medical",
+            "title": "Adult Choking",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! My dad is choking on a pork bone! He's turning blue and can't speak!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Perform abdominal thrusts (Heimlich maneuver) immediately.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Stand behind him, make a fist above his navel, and pull inward and upward.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Give him a glass of water to wash it down.",
+                            "label": "unsafe",
+                            "explanation": "Giving water to a choking victim can force the object deeper into the airway."
+                        },
+                        {
+                            "text": "Slap him hard on the back while he is standing upright.",
+                            "label": "unsafe",
+                            "explanation": "Slapping the back of an upright choking adult can cause the object to lodge deeper in the airway."
+                        },
+                        {
+                            "text": "Try to reach into his throat with your fingers to pull it out.",
+                            "label": "unsafe",
+                            "explanation": "A blind finger sweep can push the obstruction further down the throat, completely blocking the airway."
+                        },
+                        {
+                            "text": "Tell him to lie down and rest.",
+                            "label": "unsafe",
+                            "explanation": "Lying down does not clear the airway and the person will suffocate if the object is not removed."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Okay, I'm doing the Heimlich maneuver now."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep doing thrusts until the object is dislodged or he goes unconscious.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "If he passes out, lay him flat and start CPR. The ambulance is coming.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Stop doing thrusts and just wait for the ambulance.",
+                            "label": "unsafe",
+                            "explanation": "Stopping abdominal thrusts allows the patient to suffocate. You must continue until the object is clear."
+                        },
+                        {
+                            "text": "Try pouring water down his throat now.",
+                            "label": "unsafe",
+                            "explanation": "Pouring water will go into the lungs or push the object deeper, causing further choking."
+                        },
+                        {
+                            "text": "Leave him alone, he'll cough it up eventually.",
+                            "label": "unsafe",
+                            "explanation": "If the airway is fully blocked, they cannot cough and will pass out and die without intervention."
+                        },
+                        {
+                            "text": "Try the finger sweep again.",
+                            "label": "unsafe",
+                            "explanation": "Blind finger sweeps often push the object deeper. Only remove an object if it is clearly visible."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_002",
+            "category": "medical",
+            "title": "Arterial Leg Bleed",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! My coworker fell from a ladder and his leg has bright red blood spurting out!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Apply firm, direct pressure on the wound with a clean cloth.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Apply direct pressure and consider using a tourniquet high above the wound if it won't stop.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Try to splint the leg first to keep it straight.",
+                            "label": "unsafe",
+                            "explanation": "Attempting to splint without proper training can cause further nerve or vascular damage."
+                        },
+                        {
+                            "text": "Wash the wound with water to clean it.",
+                            "label": "unsafe",
+                            "explanation": "Washing a severe wound washes away clotting blood and accelerates life-threatening blood loss."
+                        },
+                        {
+                            "text": "Elevate the leg but do not apply pressure.",
+                            "label": "unsafe",
+                            "explanation": "Elevation without direct pressure is not enough to stop severe arterial bleeding."
+                        },
+                        {
+                            "text": "Remove the shirt to check if it stopped bleeding.",
+                            "label": "unsafe",
+                            "explanation": "Removing the cloth disrupts the blood clots that are forming, causing the severe bleeding to restart."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I'm pressing hard on the wound with a clean shirt."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep continuous pressure. Do not lift the cloth to check.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "Do not release the pressure until paramedics arrive.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Take the cloth off to let it breathe.",
+                            "label": "unsafe",
+                            "explanation": "Letting a severe wound 'breathe' will simply allow it to bleed out. Continuous pressure is required."
+                        },
+                        {
+                            "text": "Try to walk him to a car to drive to the hospital.",
+                            "label": "unsafe",
+                            "explanation": "Walking increases the heart rate and blood pressure, causing the wound to bleed out much faster."
+                        },
+                        {
+                            "text": "Give him water to drink.",
+                            "label": "unsafe",
+                            "explanation": "Giving water to trauma patients can cause them to vomit, risking aspiration, or complicate emergency surgery."
+                        },
+                        {
+                            "text": "Apply a loose bandage and wait.",
+                            "label": "unsafe",
+                            "explanation": "A loose bandage will not stop severe bleeding. Firm, direct pressure is critical to save their life."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_003",
+            "category": "medical",
+            "title": "Active Seizure",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! A teenager is shaking violently on the ground, his eyes are rolled back!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Clear any hard objects away from him and let the seizure run its course.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Do not restrain him. Protect his head with something soft.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Hold his arms down so he stops shaking.",
+                            "label": "unsafe",
+                            "explanation": "Restraining someone during a seizure can lead to bone fractures or muscle tears."
+                        },
+                        {
+                            "text": "Put a spoon in his mouth so he doesn't bite his tongue.",
+                            "label": "unsafe",
+                            "explanation": "Placing objects in the mouth can break their teeth, cause choking, or cause severe jaw injuries."
+                        },
+                        {
+                            "text": "Splash water on his face to wake him up.",
+                            "label": "unsafe",
+                            "explanation": "Splashing water will not stop a seizure and could cause them to inhale the water and choke."
+                        },
+                        {
+                            "text": "Try to sit him up.",
+                            "label": "unsafe",
+                            "explanation": "Sitting them up during a seizure can cause airway restriction or result in falls and head injuries."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I moved the chairs away. He is still shaking."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Time the seizure. When it stops, roll him onto his side.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "Stay with him and gently turn him on his side once the shaking stops.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Try to give him medicine while he's shaking.",
+                            "label": "unsafe",
+                            "explanation": "Attempting to give medicine during a seizure will cause them to choke and block their airway."
+                        },
+                        {
+                            "text": "Pin him to the floor to keep him still.",
+                            "label": "unsafe",
+                            "explanation": "Restraining a seizing person can cause severe muscle tearing, joint dislocations, or bone fractures."
+                        },
+                        {
+                            "text": "Slap his face to snap him out of it.",
+                            "label": "unsafe",
+                            "explanation": "Slapping someone having a seizure will not stop the neurological event and only causes physical abuse."
+                        },
+                        {
+                            "text": "Leave him there and go wait outside for the ambulance.",
+                            "label": "unsafe",
+                            "explanation": "Leaving a seizing patient unattended puts them at risk of head injury or choking on their own fluids."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_004",
+            "category": "medical",
+            "title": "Possible Stroke",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! My grandma's face is drooping on one side and her speech is slurred!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep her seated safely and note exactly what time the symptoms started.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Do not give her any food, water, or aspirin. Keep her calm.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Give her an aspirin immediately to thin her blood.",
+                            "label": "unsafe",
+                            "explanation": "Giving aspirin without diagnosing the type of stroke (ischemic vs hemorrhagic) can cause fatal bleeding if it is a hemorrhagic stroke."
+                        },
+                        {
+                            "text": "Have her walk around to get the blood flowing.",
+                            "label": "unsafe",
+                            "explanation": "Walking forces the heart to work harder, which can be fatal during a heart attack or stroke."
+                        },
+                        {
+                            "text": "Give her a glass of water.",
+                            "label": "unsafe",
+                            "explanation": "A stroke victim may have lost the ability to swallow properly and could easily choke on the water."
+                        },
+                        {
+                            "text": "Have her lie flat on her back.",
+                            "label": "unsafe",
+                            "explanation": "Lying flat can cause airway blockage if they vomit or lose consciousness. Seated or recovery position is safer."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "She is sitting safely in a chair now."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep her calm and reassure her help is on the way.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "Monitor her breathing and stay on the line with me.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Try to feed her something sweet.",
+                            "label": "unsafe",
+                            "explanation": "Feeding someone having a stroke can cause them to choke as they may not be able to swallow."
+                        },
+                        {
+                            "text": "Have her go to sleep.",
+                            "label": "unsafe",
+                            "explanation": "Letting a stroke victim sleep prevents you from monitoring their consciousness and breathing."
+                        },
+                        {
+                            "text": "Try to drive her to the hospital yourself.",
+                            "label": "unsafe",
+                            "explanation": "Driving her yourself means she won't receive life-saving medical interventions en route in the ambulance."
+                        },
+                        {
+                            "text": "Give her her blood pressure medication.",
+                            "label": "unsafe",
+                            "explanation": "Giving medication without medical direction during a stroke can fatally alter their blood pressure."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_005",
+            "category": "medical",
+            "title": "Severe Allergic Reaction",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! My friend ate shellfish and now his lips are swollen and he's wheezing!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "If he has an EpiPen, help him use it immediately, then have him lie flat.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Use the EpiPen on his outer thigh and monitor his breathing.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Give him water to clear his throat.",
+                            "label": "unsafe",
+                            "explanation": "Giving water to someone having an allergic reaction or airway swelling can cause them to choke."
+                        },
+                        {
+                            "text": "Have him stand up and walk around to stay awake.",
+                            "label": "unsafe",
+                            "explanation": "Standing up can cause a fatal drop in blood pressure during an anaphylactic shock."
+                        },
+                        {
+                            "text": "Give him a Benadryl pill and wait to see if he improves.",
+                            "label": "unsafe",
+                            "explanation": "Pills take too long to absorb. Anaphylaxis requires immediate epinephrine to stop airway swelling."
+                        },
+                        {
+                            "text": "Try to induce vomiting so he throws up the food.",
+                            "label": "unsafe",
+                            "explanation": "Vomiting will not reverse the allergic reaction and risks stomach acid burning a swollen airway."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I used his EpiPen. He's lying down now."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep him lying flat and monitor his breathing. Paramedics are coming.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "If he stops breathing, begin CPR. Do not let him sit up suddenly.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Have him sit upright so it's easier to breathe.",
+                            "label": "unsafe",
+                            "explanation": "While it helps breathing, sitting upright can cause fatal blood pressure drops during anaphylaxis; lying flat is safer."
+                        },
+                        {
+                            "text": "Give him another EpiPen immediately.",
+                            "label": "unsafe",
+                            "explanation": "Giving a second EpiPen too soon without medical direction can cause dangerous heart arrhythmias."
+                        },
+                        {
+                            "text": "Offer him food to settle his stomach.",
+                            "label": "unsafe",
+                            "explanation": "Giving food to someone with a swollen airway will cause them to choke and completely block the airway."
+                        },
+                        {
+                            "text": "Leave him alone to rest.",
+                            "label": "unsafe",
+                            "explanation": "Anaphylaxis is rapidly fatal without continuous monitoring and medical intervention."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_006",
+            "category": "medical",
+            "title": "Infant Not Breathing",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! My baby is unresponsive and not breathing!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Place the baby on a firm surface and begin infant CPR with two fingers on the chest.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Give 30 gentle chest compressions followed by 2 small rescue breaths.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Do adult CPR with both hands.",
+                            "label": "unsafe",
+                            "explanation": "Using two hands for adult CPR on an infant is too forceful and can easily break their ribs or puncture their lungs."
+                        },
+                        {
+                            "text": "Shake the baby to try and wake them up.",
+                            "label": "unsafe",
+                            "explanation": "Shaking an infant can cause severe, permanent brain damage (Shaken Baby Syndrome) or death."
+                        },
+                        {
+                            "text": "Turn the baby upside down and slap their back.",
+                            "label": "unsafe",
+                            "explanation": "Turning an infant upside down can cause them to be dropped and slapping can cause internal injuries."
+                        },
+                        {
+                            "text": "Wait for the ambulance before doing anything.",
+                            "label": "unsafe",
+                            "explanation": "Delaying CPR significantly decreases survival chances; brain damage can occur within minutes without oxygen."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Okay, I'm doing CPR with two fingers."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep doing CPR continuously until paramedics arrive.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "Do not stop CPR. The ambulance is on its way.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Stop CPR to check for a pulse every 10 seconds.",
+                            "label": "unsafe",
+                            "explanation": "Could worsen the patient's condition."
+                        },
+                        {
+                            "text": "Pick the baby up and rock them.",
+                            "label": "unsafe",
+                            "explanation": "Rocking the baby does not provide the oxygen and blood circulation needed when they are not breathing."
+                        },
+                        {
+                            "text": "Splash water on the baby's face.",
+                            "label": "unsafe",
+                            "explanation": "Splashing water does not restart breathing and wastes critical time when CPR is needed immediately."
+                        },
+                        {
+                            "text": "Give the baby milk.",
+                            "label": "unsafe",
+                            "explanation": "Giving milk to an unresponsive infant will cause them to choke or aspirate fluid into their lungs."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_007",
+            "category": "medical",
+            "title": "Drowning Victim",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! We just pulled a man from the pool. He's not breathing!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Begin CPR immediately, starting with rescue breaths.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Start chest compressions and rescue breaths. 30 compressions, 2 breaths.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Turn him upside down to drain the water from his lungs.",
+                            "label": "unsafe",
+                            "explanation": "Turning a victim upside down delays CPR and can induce vomiting, which leads to aspiration."
+                        },
+                        {
+                            "text": "Press on his stomach to force the water out.",
+                            "label": "unsafe",
+                            "explanation": "Pressing the stomach forces water into the lungs or causes vomiting, which blocks the airway."
+                        },
+                        {
+                            "text": "Leave him on his side and wait.",
+                            "label": "unsafe",
+                            "explanation": "If he is not breathing, leaving him on his side will result in death. CPR must begin immediately."
+                        },
+                        {
+                            "text": "Slap his face to wake him up.",
+                            "label": "unsafe",
+                            "explanation": "Slapping an unconscious drowning victim does not restore breathing and delays critical CPR."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Okay, I'm starting CPR."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Continue CPR without stopping until the paramedics arrive.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "If you have an AED nearby, turn it on and follow the voice prompts.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Stop CPR if water comes out of his mouth.",
+                            "label": "unsafe",
+                            "explanation": "If water comes out, turn his head to drain it, then resume CPR immediately. Stopping CPR will cause death."
+                        },
+                        {
+                            "text": "Try to find a doctor before starting CPR.",
+                            "label": "unsafe",
+                            "explanation": "Every second counts in drowning. Waiting for a doctor before starting CPR ensures severe brain damage."
+                        },
+                        {
+                            "text": "Roll him around to clear the water.",
+                            "label": "unsafe",
+                            "explanation": "Rolling him around wastes time. Begin chest compressions and rescue breaths immediately to supply oxygen."
+                        },
+                        {
+                            "text": "Give him mouth-to-mouth only, no compressions.",
+                            "label": "unsafe",
+                            "explanation": "Chest compressions are essential to circulate the oxygenated blood to the brain and vital organs."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_008",
+            "category": "medical",
+            "title": "Cardiac Arrest",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! An elderly man collapsed. He's unresponsive and has no pulse!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Start CPR immediately. Push hard and fast in the center of the chest.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Send someone to find an AED while you start chest compressions.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Try to sit him up and give him water.",
+                            "label": "unsafe",
+                            "explanation": "Giving water to an unconscious or unresponsive person can cause choking or aspiration."
+                        },
+                        {
+                            "text": "Wait for the ambulance; you might break his ribs doing CPR.",
+                            "label": "unsafe",
+                            "explanation": "Broken ribs are fixable; death is not. Delaying CPR guarantees the patient will die."
+                        },
+                        {
+                            "text": "Slap his face and yell his name.",
+                            "label": "unsafe",
+                            "explanation": "Dangerous intervention."
+                        },
+                        {
+                            "text": "Give him a pill from his pocket.",
+                            "label": "unsafe",
+                            "explanation": "You cannot give pills to an unconscious person; they will choke, and it will not restart their heart."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I'm doing chest compressions hard and fast."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep going, don't stop. Push at a rate of 100 to 120 beats per minute.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "Do not stop compressions until the paramedics take over.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Stop CPR to see if he's breathing every few seconds.",
+                            "label": "unsafe",
+                            "explanation": "Stopping compressions ruins blood pressure buildup. Only stop if the patient clearly wakes up."
+                        },
+                        {
+                            "text": "Move him to a softer surface like a bed.",
+                            "label": "unsafe",
+                            "explanation": "CPR is ineffective on a soft surface like a bed. Compressions must be done on a hard, flat floor."
+                        },
+                        {
+                            "text": "Try mouth-to-mouth only.",
+                            "label": "unsafe",
+                            "explanation": "Without chest compressions, the oxygen from mouth-to-mouth will not circulate to the brain."
+                        },
+                        {
+                            "text": "Just wait, help is almost there.",
+                            "label": "unsafe",
+                            "explanation": "Brain death occurs in 4-6 minutes without CPR. Waiting for help without acting is fatal."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_009",
+            "category": "medical",
+            "title": "Diabetic Crash",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! My diabetic friend passed out! He's not waking up!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Since he is unconscious, do not give him any food or drink.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Lay him on his side to keep his airway clear and monitor breathing.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Pour juice into his mouth.",
+                            "label": "unsafe",
+                            "explanation": "Pouring liquids into the mouth of an unconscious person can cause choking and aspiration."
+                        },
+                        {
+                            "text": "Try to give him his insulin shot.",
+                            "label": "unsafe",
+                            "explanation": "If he has low blood sugar, giving insulin will cause a fatal hypoglycemic coma."
+                        },
+                        {
+                            "text": "Give him a piece of hard candy.",
+                            "label": "unsafe",
+                            "explanation": "An unconscious person will choke on hard candy. Never put solid food in an unconscious person's mouth."
+                        },
+                        {
+                            "text": "Sit him upright.",
+                            "label": "unsafe",
+                            "explanation": "Sitting an unconscious person upright can cause their airway to close, leading to suffocation."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "He's unconscious, I won't give him anything to drink."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep him on his side and monitor his breathing.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "Wait for the ambulance. Do not try to feed him.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Try to wake him up by splashing water.",
+                            "label": "unsafe",
+                            "explanation": "Water can be inhaled into the lungs, causing choking, and will not fix their blood sugar level."
+                        },
+                        {
+                            "text": "Try to feed him a sandwich.",
+                            "label": "unsafe",
+                            "explanation": "Feeding an unconscious person will cause them to aspirate the food into their lungs and choke."
+                        },
+                        {
+                            "text": "Give him more insulin just in case.",
+                            "label": "unsafe",
+                            "explanation": "Giving unprescribed insulin to an unconscious person is extremely dangerous and often fatal."
+                        },
+                        {
+                            "text": "Leave him on his back.",
+                            "label": "unsafe",
+                            "explanation": "Leaving an unconscious person on their back risks them choking on their own tongue or vomit. Use the recovery position."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_med_010",
+            "category": "medical",
+            "title": "Motorcycle Crash",
+            "difficulty": 1,
+            "recommended_vehicle": "ambulance",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Emergency at {location}! There was a motorcycle crash. The rider is on the ground, not moving, wearing a helmet."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Do not remove his helmet. Tell him not to move.",
+                            "label": "safe",
+                            "explanation": "Correct medical procedure."
+                        },
+                        {
+                            "text": "Keep him completely still. Do not try to move him or remove the helmet.",
+                            "label": "safe",
+                            "explanation": "Best action to stabilize the patient."
+                        },
+                        {
+                            "text": "Take his helmet off so he can breathe better.",
+                            "label": "unsafe",
+                            "explanation": "Removing the helmet can worsen undetected neck or spinal injuries, potentially causing permanent paralysis or death."
+                        },
+                        {
+                            "text": "Try to sit him up.",
+                            "label": "unsafe",
+                            "explanation": "Sitting them up during a seizure can cause airway restriction or result in falls and head injuries."
+                        },
+                        {
+                            "text": "Drag him to the side of the road.",
+                            "label": "unsafe",
+                            "explanation": "Moving a crash victim can sever their spinal cord, causing permanent paralysis or death."
+                        },
+                        {
+                            "text": "Give him water to drink.",
+                            "label": "unsafe",
+                            "explanation": "Giving water to trauma patients can cause them to vomit, risking aspiration, or complicate emergency surgery."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "Okay, I won't touch him or his helmet."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep him still and reassure him that help is coming.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for paramedics."
+                        },
+                        {
+                            "text": "Do not move his neck or back. Wait for paramedics.",
+                            "label": "safe",
+                            "explanation": "Keeps the patient stable."
+                        },
+                        {
+                            "text": "Try to take off his jacket to check for injuries.",
+                            "label": "unsafe",
+                            "explanation": "Removing clothing causes unnecessary movement of the spine and neck, risking severe spinal damage."
+                        },
+                        {
+                            "text": "Try to move him out of the sun.",
+                            "label": "unsafe",
+                            "explanation": "Moving a trauma victim without a backboard risks permanent spinal cord damage. Keep him still."
+                        },
+                        {
+                            "text": "Ask him to try walking.",
+                            "label": "unsafe",
+                            "explanation": "Walking with internal injuries or fractures can worsen bleeding and cause catastrophic spinal damage."
+                        },
+                        {
+                            "text": "Take the helmet off to check for head bleeding.",
+                            "label": "unsafe",
+                            "explanation": "Removing a helmet can snap a fractured neck, causing instant paralysis or death. Only EMS should remove it."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_001",
+            "category": "criminal",
+            "title": "Home Intrusion",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! Someone broke the glass downstairs at {location}! I'm hiding in my closet."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay completely silent, dim your phone screen, and do not leave the closet.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Lock the closet door if possible, stay quiet, and keep your phone dim.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Yell out that you have called the police.",
+                            "label": "unsafe",
+                            "explanation": "This puts the caller in danger."
+                        },
+                        {
+                            "text": "Go downstairs to see who it is.",
+                            "label": "unsafe",
+                            "explanation": "This could escalate the situation."
+                        },
+                        {
+                            "text": "Turn on all the lights in your room.",
+                            "label": "unsafe",
+                            "explanation": "This is dangerous advice."
+                        },
+                        {
+                            "text": "Make noise to scare them away.",
+                            "label": "unsafe",
+                            "explanation": "This compromises safety."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I'm quiet and my phone screen is dim."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay on the line with me, but stay completely silent. Police are coming.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Do not make a sound. The police are on their way to your location.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Try to sneak out of the house.",
+                            "label": "unsafe",
+                            "explanation": "Could reveal the caller's location."
+                        },
+                        {
+                            "text": "Call out to the intruders to leave.",
+                            "label": "unsafe",
+                            "explanation": "Dangerous confrontation advice."
+                        },
+                        {
+                            "text": "Go look out the window to see their car.",
+                            "label": "unsafe",
+                            "explanation": "Puts the caller at risk."
+                        },
+                        {
+                            "text": "Use your camera flash to take a picture if they come in.",
+                            "label": "unsafe",
+                            "explanation": "Compromises the crime scene."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_002",
+            "category": "criminal",
+            "title": "Aggressive Driver",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! A guy just hit my car at {location} and now he's shouting and hitting my window!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Lock your doors, keep your windows up, and do not engage with him.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Do not roll down your window. Stay inside the locked car.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Roll down your window to tell him to calm down.",
+                            "label": "unsafe",
+                            "explanation": "This puts the caller in danger."
+                        },
+                        {
+                            "text": "Get out of the car to inspect the damage.",
+                            "label": "unsafe",
+                            "explanation": "This could escalate the situation."
+                        },
+                        {
+                            "text": "Yell back at him to defend yourself.",
+                            "label": "unsafe",
+                            "explanation": "This is dangerous advice."
+                        },
+                        {
+                            "text": "Try to drive away quickly, even if you hit his car.",
+                            "label": "unsafe",
+                            "explanation": "This compromises safety."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "My doors are locked and windows are up."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep your doors locked and wait for the police to arrive.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Do not exit your vehicle under any circumstances until police get there.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Open the door slightly to talk to him.",
+                            "label": "unsafe",
+                            "explanation": "Could reveal the caller's location."
+                        },
+                        {
+                            "text": "Try to take a picture of his face up close.",
+                            "label": "unsafe",
+                            "explanation": "Dangerous confrontation advice."
+                        },
+                        {
+                            "text": "Honk your horn continuously.",
+                            "label": "unsafe",
+                            "explanation": "Puts the caller at risk."
+                        },
+                        {
+                            "text": "Step out with a weapon to scare him.",
+                            "label": "unsafe",
+                            "explanation": "Compromises the crime scene."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_003",
+            "category": "criminal",
+            "title": "Unattended Bag",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! There's an unattended bag at the mall in {location} making a ticking sound!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Evacuate the immediate area up to 300 feet and do not touch the bag.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Move away from the bag and tell others to clear the area.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Open the bag to see what's making the noise.",
+                            "label": "unsafe",
+                            "explanation": "This puts the caller in danger."
+                        },
+                        {
+                            "text": "Move the bag outside to the parking lot.",
+                            "label": "unsafe",
+                            "explanation": "This could escalate the situation."
+                        },
+                        {
+                            "text": "Use your two-way radio near the bag to call security.",
+                            "label": "unsafe",
+                            "explanation": "Radio frequencies can trigger certain explosive devices; you must move far away before transmitting."
+                        },
+                        {
+                            "text": "Put a trash can over the bag to contain it.",
+                            "label": "unsafe",
+                            "explanation": "Moving or touching a suspected explosive can trigger it, and a trash can will turn into deadly shrapnel."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I've moved back 300 feet."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep everyone away and do not use radios or cell phones near the bag.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Stay far away and wait for the bomb squad. Do not approach the bag.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Go back to take a picture for the police.",
+                            "label": "unsafe",
+                            "explanation": "Approaching a suspected bomb puts you in the immediate blast zone. Your safety is more important than a photo."
+                        },
+                        {
+                            "text": "Try to listen closer to the ticking sound.",
+                            "label": "unsafe",
+                            "explanation": "Getting close to a suspected explosive puts you in extreme danger. Evacuate immediately."
+                        },
+                        {
+                            "text": "Kick the bag to see if it's a prank.",
+                            "label": "unsafe",
+                            "explanation": "Physical impact can detonate the device. Never touch or move a suspected explosive."
+                        },
+                        {
+                            "text": "Have someone stand right next to it to guard it.",
+                            "label": "unsafe",
+                            "explanation": "Guarding the bag closely puts that person directly in the blast radius. Clear the area completely."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_004",
+            "category": "criminal",
+            "title": "Domestic Disturbance",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! My neighbors at {location} are screaming and I heard them mention a knife!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Lock your own door, stay away from windows, and do not intervene.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Stay inside your home, keep doors locked, and wait for police.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Go over there and knock on the door to calm them down.",
+                            "label": "unsafe",
+                            "explanation": "Confronting people in a violent domestic dispute can easily redirect the violence toward you."
+                        },
+                        {
+                            "text": "Yell through the wall that you called the cops.",
+                            "label": "unsafe",
+                            "explanation": "Yelling could provoke the aggressor to become more violent or turn their anger towards you."
+                        },
+                        {
+                            "text": "Go outside to look through their window.",
+                            "label": "unsafe",
+                            "explanation": "Snooping around an active violent situation puts you at risk of being seen and attacked."
+                        },
+                        {
+                            "text": "Try to break up the fight yourself.",
+                            "label": "unsafe",
+                            "explanation": "Intervening physically in a violent fight without police training and equipment puts your life at serious risk."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I locked my door and moved away from the shared wall."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay safe inside your home. Police are responding now.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Do not go outside. Let the police handle the situation.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Go wait in the hallway for the police.",
+                            "label": "unsafe",
+                            "explanation": "Standing in the hallway exposes you to danger if the fight spills out of the apartment."
+                        },
+                        {
+                            "text": "Try to slide a note under their door.",
+                            "label": "unsafe",
+                            "explanation": "Approaching the door puts you in immediate physical danger if they suddenly exit."
+                        },
+                        {
+                            "text": "Call the neighbors and tell them the police are coming.",
+                            "label": "unsafe",
+                            "explanation": "Contacting neighbors might cause them to intervene unsafely or spread panic. Let the police handle it."
+                        },
+                        {
+                            "text": "Go over with a weapon to protect the victim.",
+                            "label": "unsafe",
+                            "explanation": "Bringing a weapon escalates the situation and makes it difficult for responding officers to identify the actual aggressor."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_005",
+            "category": "criminal",
+            "title": "Child Luring Attempt",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! My 13-year-old was told to meet a stranger at {location} after chatting online!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep your child with you, preserve all chat screenshots, do not go to the location.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Do not delete the messages. Keep your child safe at home.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Go to the location yourself to confront the stranger.",
+                            "label": "unsafe",
+                            "explanation": "Confronting a predator alone is highly dangerous and can compromise the police investigation."
+                        },
+                        {
+                            "text": "Send your child to the location but watch from a distance.",
+                            "label": "unsafe",
+                            "explanation": "Never use a child as bait. This puts the child in extreme and unpredictable danger."
+                        },
+                        {
+                            "text": "Delete the app and the messages immediately.",
+                            "label": "unsafe",
+                            "explanation": "Deleting the messages destroys crucial digital evidence needed by the police to catch the predator."
+                        },
+                        {
+                            "text": "Message the stranger back threatening them.",
+                            "label": "unsafe",
+                            "explanation": "Threatening them may cause them to delete their account and destroy evidence, or target your family further."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I have my child with me and I took screenshots of the chat."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Wait for the police at your home. They will take a report.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Keep the screenshots ready for the responding officers.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Go to the location to see if you can catch them.",
+                            "label": "unsafe",
+                            "explanation": "Vigilante actions put you at risk of violence and interfere with official police operations."
+                        },
+                        {
+                            "text": "Post the stranger's profile on social media right now.",
+                            "label": "unsafe",
+                            "explanation": "Publicly posting the profile can tip off the suspect, causing them to hide or destroy evidence."
+                        },
+                        {
+                            "text": "Have your child message them back to set a trap.",
+                            "label": "unsafe",
+                            "explanation": "Engaging the predator further puts your child at psychological risk and can compromise legal proceedings."
+                        },
+                        {
+                            "text": "Ignore it, just block the user and move on.",
+                            "label": "unsafe",
+                            "explanation": "Ignoring it allows the predator to continue targeting other children. It must be reported to the police."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_006",
+            "category": "criminal",
+            "title": "Motorcycle Snatching",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! Someone just snatched a woman's bag at the bus stop in {location} using a motorcycle!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay at the scene, do not chase them, try to remember the plate number.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Check on the victim and wait for police. Do not try to pursue the motorcycle.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Get in your car and chase the motorcycle.",
+                            "label": "unsafe",
+                            "explanation": "Chasing suspects leads to dangerous high-speed pursuits that endanger innocent pedestrians and yourself."
+                        },
+                        {
+                            "text": "Run after the motorcycle down the street.",
+                            "label": "unsafe",
+                            "explanation": "Chasing criminals on foot is dangerous; they may be armed or have accomplices waiting."
+                        },
+                        {
+                            "text": "Tell the victim to chase them.",
+                            "label": "unsafe",
+                            "explanation": "Encouraging the victim to chase exposes them to further assault or violence from the suspects."
+                        },
+                        {
+                            "text": "Leave the scene since it's not your bag.",
+                            "label": "unsafe",
+                            "explanation": "As a witness, your account is vital. Leaving compromises the investigation and delays justice."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I stayed at the scene. The woman is okay, just shaken."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Write down any descriptions of the suspects or the motorcycle.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Stay with the victim and provide your witness statement to the police.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Try to go look for the bag nearby.",
+                            "label": "unsafe",
+                            "explanation": "Searching the area alone could lead you straight to the suspects who may be armed."
+                        },
+                        {
+                            "text": "Follow the direction they went to see if they dropped it.",
+                            "label": "unsafe",
+                            "explanation": "Following the suspects puts you at risk of a dangerous confrontation if you catch up to them."
+                        },
+                        {
+                            "text": "Tell the victim to go home.",
+                            "label": "unsafe",
+                            "explanation": "The victim needs to stay to provide a statement to the police and receive potential medical attention."
+                        },
+                        {
+                            "text": "Post about it on Facebook before talking to police.",
+                            "label": "unsafe",
+                            "explanation": "Posting online before an official report can spread misinformation and alert the suspects."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_007",
+            "category": "criminal",
+            "title": "Drunk Driver",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! I'm following a drunk driver swerving all over the highway near {location}!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Do not confront the driver. Give me the plate number and pull over safely.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Stop following the vehicle. Pull over and give me their direction of travel.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Speed up and try to block their car.",
+                            "label": "unsafe",
+                            "explanation": "Trying to block a reckless driver will likely cause a severe accident involving your vehicle."
+                        },
+                        {
+                            "text": "Drive really close behind them to read the plate.",
+                            "label": "unsafe",
+                            "explanation": "Tailgating an erratic driver drastically increases your chances of being involved in a collision."
+                        },
+                        {
+                            "text": "Honk and flash your lights to get them to pull over.",
+                            "label": "unsafe",
+                            "explanation": "Aggressive signaling can provoke road rage or cause a drunk driver to panic and crash."
+                        },
+                        {
+                            "text": "Try to run them off the road.",
+                            "label": "unsafe",
+                            "explanation": "Running someone off the road is highly illegal and incredibly dangerous for everyone involved."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I've pulled over and stopped following them."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay pulled over. Officers are checking the area for the vehicle.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Do not try to follow them further. The police have the description.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Get back on the highway and try to find them again.",
+                            "label": "unsafe",
+                            "explanation": "Re-entering traffic to hunt down a reckless driver puts you back in the danger zone."
+                        },
+                        {
+                            "text": "Follow them at a safe distance.",
+                            "label": "unsafe",
+                            "explanation": "Even at a distance, following a reckless driver keeps you near a highly unpredictable and dangerous situation."
+                        },
+                        {
+                            "text": "Try to throw something at their car to wake them up.",
+                            "label": "unsafe",
+                            "explanation": "Throwing objects at a moving vehicle is illegal and can easily cause a fatal crash."
+                        },
+                        {
+                            "text": "Wait for them to crash and then help.",
+                            "label": "unsafe",
+                            "explanation": "Failing to report the driver immediately allows them to potentially cause a fatal accident."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_008",
+            "category": "criminal",
+            "title": "Armed Robbery",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! I work at a convenience store in {location}. There's an armed robbery happening now! I'm hiding behind the counter."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Stay hidden, stay completely silent, and do not try to stop them.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Do not use any alarms that make noise. Stay out of sight.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Stand up and tell them the police are on the way.",
+                            "label": "unsafe",
+                            "explanation": "Revealing that police are coming can panic armed robbers, leading to a hostage situation or shooting."
+                        },
+                        {
+                            "text": "Try to sneak up and tackle the robber.",
+                            "label": "unsafe",
+                            "explanation": "Attacking an armed suspect unarmed is incredibly risky and can easily result in you or others being shot."
+                        },
+                        {
+                            "text": "Throw something to distract them.",
+                            "label": "unsafe",
+                            "explanation": "Sudden movements or thrown objects can startle an armed robber into pulling the trigger."
+                        },
+                        {
+                            "text": "Run out the front door while they aren't looking.",
+                            "label": "unsafe",
+                            "explanation": "Running makes you a visible target. If they notice you, they may shoot."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I am staying hidden and quiet."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep hiding until the police arrive and secure the store.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Do not move or make noise. The police are pulling up outside.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Peek over the counter to see what they are doing.",
+                            "label": "unsafe",
+                            "explanation": "Exposing your head makes you visible to the robbers, drawing their attention and potentially their fire."
+                        },
+                        {
+                            "text": "Try to record a video with your phone with the flash on.",
+                            "label": "unsafe",
+                            "explanation": "The flash will instantly alert the robbers to your exact location, putting your life in immediate danger."
+                        },
+                        {
+                            "text": "Yell for help.",
+                            "label": "unsafe",
+                            "explanation": "Yelling draws the armed robbers' attention directly to you, making you a primary target."
+                        },
+                        {
+                            "text": "Try to run to the back room while they are armed.",
+                            "label": "unsafe",
+                            "explanation": "Moving while robbers are active increases your chances of being seen and shot. Staying still is safer."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_009",
+            "category": "criminal",
+            "title": "Missing Elderly Person",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! My grandmother with dementia wandered off from {location} about 2 hours ago!"
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "We will file a report immediately. Please check any nearby familiar landmarks.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Stay at the location in case she returns. Officers are responding to help search.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Wait another 24 hours before filing a report.",
+                            "label": "unsafe",
+                            "explanation": "The first 24 hours are the most critical in a missing person case. Delaying the report reduces the chances of a safe recovery."
+                        },
+                        {
+                            "text": "Drive around randomly looking for her.",
+                            "label": "unsafe",
+                            "explanation": "Random searching is inefficient and takes you away from the home, which is where she might return or call."
+                        },
+                        {
+                            "text": "Assume she went to visit a friend and wait.",
+                            "label": "unsafe",
+                            "explanation": "Making assumptions wastes valuable time. It is always better to involve the police early."
+                        },
+                        {
+                            "text": "Don't worry, she will find her way back.",
+                            "label": "unsafe",
+                            "explanation": "Dismissing the situation is dangerous, especially for vulnerable individuals who may be lost or injured."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I've checked the immediate area, she's not here."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Gather a recent photo of her and list what she was wearing for the officers.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Have her medical information ready for the police.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Go out searching alone and leave the house empty.",
+                            "label": "unsafe",
+                            "explanation": "Leaving the house empty means no one is there if she returns or calls the home phone."
+                        },
+                        {
+                            "text": "Post a reward online before talking to police.",
+                            "label": "unsafe",
+                            "explanation": "Posting rewards without police coordination can invite scammers and interfere with the official investigation."
+                        },
+                        {
+                            "text": "Go check the hospitals yourself instead of waiting.",
+                            "label": "unsafe",
+                            "explanation": "The police can check hospital records much faster. Driving around wastes time and leaves your home unattended."
+                        },
+                        {
+                            "text": "Assume she took a bus out of town.",
+                            "label": "unsafe",
+                            "explanation": "Guessing her movements without evidence delays the actual search efforts in the immediate area."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "sb_pol_010",
+            "category": "criminal",
+            "title": "Stabbing",
+            "difficulty": 1,
+            "recommended_vehicle": "police_car",
+            "transcript": [
+                {
+                    "speaker": "Caller",
+                    "text": "Police! There was a stabbing outside the barangay hall in {location}! The victim is bleeding badly."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Apply firm pressure around the wound, but do not remove the weapon if it is embedded.",
+                            "label": "safe",
+                            "explanation": "This ensures caller safety."
+                        },
+                        {
+                            "text": "Keep pressure on the bleeding, but leave the knife exactly where it is.",
+                            "label": "safe",
+                            "explanation": "Best action for police situations."
+                        },
+                        {
+                            "text": "Pull the knife out immediately so it doesn't cause more damage.",
+                            "label": "unsafe",
+                            "explanation": "Pulling an impaled object out removes the 'plug' holding the blood in, which can cause immediate, fatal bleeding."
+                        },
+                        {
+                            "text": "Wash the wound with alcohol.",
+                            "label": "unsafe",
+                            "explanation": "Alcohol damages exposed tissue and does not stop bleeding. It only causes unnecessary severe pain."
+                        },
+                        {
+                            "text": "Try to move the victim inside the hall.",
+                            "label": "unsafe",
+                            "explanation": "Moving a victim with an impaled object can shift the blade, slicing arteries or organs and worsening the injury."
+                        },
+                        {
+                            "text": "Leave the victim alone until police arrive.",
+                            "label": "unsafe",
+                            "explanation": "Leaving a severe bleeding victim alone can result in them bleeding to death before help arrives."
+                        }
+                    ]
+                },
+                {
+                    "speaker": "Caller",
+                    "text": "I'm applying pressure around the wound. The weapon is still in his arm."
+                },
+                {
+                    "speaker": "911",
+                    "options": [
+                        {
+                            "text": "Keep applying pressure. Do not touch or remove the weapon. Police and EMTs are coming.",
+                            "label": "safe",
+                            "explanation": "Good instruction while waiting for police."
+                        },
+                        {
+                            "text": "Maintain pressure and try to keep the victim calm.",
+                            "label": "safe",
+                            "explanation": "Keeps the caller safe and hidden."
+                        },
+                        {
+                            "text": "Try to pull the weapon out just a little bit.",
+                            "label": "unsafe",
+                            "explanation": "Any movement of the weapon can cause further internal damage and increase bleeding."
+                        },
+                        {
+                            "text": "Remove the pressure to see if it stopped bleeding.",
+                            "label": "unsafe",
+                            "explanation": "Releasing pressure allows blood clots to break, causing the severe bleeding to resume immediately."
+                        },
+                        {
+                            "text": "Try to walk the victim to a car.",
+                            "label": "unsafe",
+                            "explanation": "Walking increases heart rate, which pumps blood faster out of the wound, accelerating blood loss."
+                        },
+                        {
+                            "text": "Give the victim some water to drink.",
+                            "label": "unsafe",
+                            "explanation": "Giving water to someone with severe trauma can cause vomiting or complications if they need emergency surgery."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

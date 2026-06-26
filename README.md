@@ -15,7 +15,7 @@ We are building a playable dispatch loop with these core pieces:
 - A player response step before dispatch.
 - Difficulty-based input modes:
 	- Easy mode uses multiple-choice responses.
-	- Advanced or certified mode uses typed responses with NLP-style evaluation.
+	- Advanced or profressional mode uses typed responses with NLP-style evaluation.
 - Unit dispatch decisions based on the actual emergency type.
 - Different timing and outcome pressure based on incident severity and response quality.
 - A rule that the player cannot close the call until emergency services have arrived.

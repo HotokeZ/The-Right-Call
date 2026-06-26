@@ -1,8 +1,9 @@
 extends Node2D
 
-@export var map_texture_path: String = "res://assets/maps/map.png"
+@export var map_texture_path: String = "res://assets/maps/map_high.png"
 @export var route_json_res_path: String = "res://data/routes/citywide_patrol_route.json"
 @export var station_json_res_path: String = "res://data/gameplay/service_stations.json"
+@export var building_json_res_path: String = ""
 @export var main_menu_scene_path: String = "res://scenes/ui/main_menu.tscn"
 @export var dispatch_initial_delay_s: float = 2.0
 @export var dispatch_between_calls_min_s: float = 5.0
@@ -21,7 +22,6 @@ extends Node2D
 
 # Runtime map state
 var _map_sprite: Sprite2D
-var _map_high_sprite: Sprite2D = null
 var _world_node: Node2D
 var _img_w: int = 0
 var _img_h: int = 0
@@ -45,6 +45,11 @@ var _hint_label: Label
 var _home_button: Button
 var _hud_content: VBoxContainer
 
+# Rotating tips
+var _tips_list: Array = []
+var _tip_index: int = 0
+var _tip_timer: Timer = null
+
 # Dispatch UI state
 var _dim_overlay: ColorRect
 var _dispatch_panel: PanelContainer
@@ -53,8 +58,11 @@ var _tab_container: HBoxContainer
 var _panel_header_label: Label
 var _incident_summary_label: Label
 var _incoming_label: Label
-var _answer_button: Button
-var _transcript_label: RichTextLabel
+var _chat_box: VBoxContainer
+var _caller_portrait: TextureRect
+var _operator_portrait: TextureRect
+var _current_call_mistakes: int = 0
+var _caller_images: Array = []
 var _response_prompt_label: Label
 var _choices_box: VBoxContainer
 var _hint_button: Button
@@ -74,6 +82,7 @@ var _dispatch_phase_unlocked: bool = false
 
 # Dispatch gameplay state
 var _route_points_px: Array = []
+var _buildings_px: Array = []
 var _pending_call: Dictionary = {}
 var _active_call: Dictionary = {}
 var _active_call_marker: Node2D = null
@@ -96,6 +105,7 @@ var _call_sequence: int = 0
 var _is_interactive_tutorial: bool = false
 var _tutorial_panel: PanelContainer = null
 var _tutorial_label: Label = null
+var _tutorial_proceed_lbl: Label = null
 var _caller_lines: Array = []  # Filtered: only Caller/System lines
 var _caller_line_index: int = 0  # Which caller line we're on
 var _interactive_phase: int = 0  # 0=waiting, 1+=response round N
@@ -105,24 +115,30 @@ var _location_revealed: bool = false
 var _complaint_revealed: bool = false
 var _awaiting_dispatcher_prompt: bool = false
 var _expected_dispatcher_prompt_text: String = ""
+var _active_mid_transcript_options: Array = []
 var _professional_scored_tags: Dictionary = {}
 var _coach_pointer_label: Label = null
 var _coach_pointer_tween: Tween = null
 var _tutorial_focus_layer: Control = null
 var _tutorial_focus_blocks: Array = []
-var _tutorial_focus_target: Control = null
+var _tutorial_focus_target: Variant = null
 var _tutorial_focus_tween: Tween = null
 
 # Scoring
 var _call_score: int = 0
 var _total_score: int = 0
 var _calls_completed: int = 0
+var _wrong_advice_count: int = 0
+
 var _call_start_time: float = 0.0
 var _score_label: Label
 var _shift_label: Label
+var _score_container: VBoxContainer
 var _feedback_dialog: AcceptDialog
 var _feedback_popup_context: String = ""
 var _kid_message_dialog: AcceptDialog
+var _hud_panel: PanelContainer
+var _toggle_hud_button: Button
 var _minimized_call_button: Button
 var _next_day_button: Button
 var _offscreen_indicator: Area2D
@@ -135,6 +151,7 @@ var _post_shift_action: String = ""
 var _shift_review_dialog: AcceptDialog
 var _shift_review_list: VBoxContainer
 var _shift_review_other_button: Button
+var _shift_review_proceed_button: Button
 var _other_options_dialog: AcceptDialog
 var _other_options_list: VBoxContainer
 var _shift_call_reviews: Array = []
@@ -154,7 +171,7 @@ var _patrol_manager: Node = null
 
 # Groq API Integration for HTML5 LLM
 var _groq_http: HTTPRequest = null
-const GROQ_API_KEY: String = "" # Add your key here before playing
+var _llm_persona: RefCounted = null   # LLMPersona — prompt builder & API config
 var _is_waiting_for_llm: bool = false
 var _intake_location_asked: bool = false
 var _intake_emergency_asked: bool = false
@@ -162,11 +179,25 @@ var _intake_emergency_asked: bool = false
 func _ready() -> void:
 	_groq_http = HTTPRequest.new()
 	add_child(_groq_http)
-	
+	_llm_persona = load("res://scripts/systems/llm_persona.gd").new()
+
+	# ── Audio ─────────────────────────────────────────────────────────────
+	var am = get_node_or_null("/root/AudioManager")
+	if am:
+		am.play_bgm()
+
 	var state = get_node_or_null("/root/GameState")
-	if state and not state.call("get_first_live_call_done"):
-		_is_interactive_tutorial = true
 	if state:
+		var _init_mode_id: String = "easy_multiple_choice"
+		if state.has_method("get_selected_mode"):
+			var _init_mode: Dictionary = state.call("get_selected_mode")
+			_init_mode_id = String(_init_mode.get("id", "easy_multiple_choice"))
+		var _is_normal_mode: bool = (_init_mode_id == "easy_multiple_choice")
+		if not state.call("get_first_live_call_done") and _is_normal_mode:
+			_is_interactive_tutorial = true
+		if state.has_method("get_force_tutorial") and state.call("get_force_tutorial") and _is_normal_mode:
+			_is_interactive_tutorial = true
+			
 		if state.has_method("get_locale"):
 			_selected_locale = String(state.call("get_locale"))
 		if state.has_method("get_current_day"):
@@ -175,11 +206,15 @@ func _ready() -> void:
 			_day_difficulty_scale = max(1.0, float(state.call("get_day_difficulty_scale")))
 		if state.has_method("get_saved_shift"):
 			var saved = state.call("get_saved_shift")
-			if not saved.is_empty() and saved.has("total_score"):
+			# ONLY restore shift progress if we are NOT running the tutorial refresher
+			if not saved.is_empty() and saved.has("total_score") and not _is_interactive_tutorial:
 				_total_score = int(saved.get("total_score", 0))
 				_calls_completed = int(saved.get("calls_completed", 0))
 				_shift_call_reviews = saved.get("shift_call_reviews", [])
 				_shift_remaining_s = int(saved.get("shift_remaining_s", _shift_remaining_s))
+		if state.has_method("get_total_historical_calls"):
+			_call_sequence = _calls_completed
+
 
 	if _shift_remaining_s <= 0:
 		_shift_remaining_s = max(1, shift_duration_s)
@@ -189,26 +224,25 @@ func _ready() -> void:
 	_world_node = $World
 
 	_init_map_dimensions()
-	
-	if ResourceLoader.exists("res://assets/maps/map_high.png"):
-		_map_high_sprite = Sprite2D.new()
-		_map_high_sprite.name = "MapHigh"
-		var tex_high = load("res://assets/maps/map_high.png")
-		_map_high_sprite.texture = tex_high
-		_map_high_sprite.centered = false
-		_map_high_sprite.modulate.a = 0.0
-		_map_sprite.get_parent().add_child(_map_high_sprite)
-		_map_sprite.get_parent().move_child(_map_high_sprite, _map_sprite.get_index() + 1)
-		_map_high_sprite.scale = _map_sprite.scale
-		_map_high_sprite.position = _map_sprite.position
-
 	_fit_map_to_viewport()
 	_configure_world_route_source()
 
 	get_viewport().connect("size_changed", Callable(self, "_on_viewport_resized"))
 	_add_vehicle_manager()
 
+	_load_caller_images()
 	_setup_hud()
+
+func _load_caller_images() -> void:
+	var path = "res://assets/Portraits/"
+	var dir = DirAccess.open(path)
+	if dir:
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+		while file_name != "":
+			if not dir.current_is_dir() and file_name.ends_with(".png") and "Berong" not in file_name:
+				_caller_images.append(path + file_name)
+			file_name = dir.get_next()
 	_setup_scenario_generator()
 	_load_route_points_for_calls()
 	_setup_dispatch_ui()
@@ -222,6 +256,7 @@ func _create_tutorial_ui() -> void:
 	_tutorial_panel = PanelContainer.new()
 	_tutorial_panel.custom_minimum_size = Vector2(300, 64)
 	_tutorial_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutorial_panel.z_index = 100
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.15, 0.5, 0.7, 0.95)
 	style.corner_radius_top_left = 14
@@ -264,6 +299,24 @@ func _create_tutorial_ui() -> void:
 		canvas.move_child(_tutorial_panel, -1)
 	else:
 		add_child(_tutorial_panel)
+		
+	_tutorial_proceed_lbl = Label.new()
+	_tutorial_proceed_lbl.text = "Click to proceed"
+	_tutorial_proceed_lbl.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_tutorial_proceed_lbl.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_tutorial_proceed_lbl.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_tutorial_proceed_lbl.offset_right = -20
+	_tutorial_proceed_lbl.offset_bottom = -20
+	_tutorial_proceed_lbl.add_theme_font_size_override("font_size", 24)
+	_tutorial_proceed_lbl.add_theme_color_override("font_color", Color(1, 1, 0.5, 0.9))
+	_tutorial_proceed_lbl.add_theme_constant_override("outline_size", 4)
+	_tutorial_proceed_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	_tutorial_proceed_lbl.visible = false
+	if canvas:
+		canvas.add_child(_tutorial_proceed_lbl)
+	else:
+		add_child(_tutorial_proceed_lbl)
+		
 	_layout_tutorial_panel()
 
 func _layout_tutorial_panel() -> void:
@@ -292,18 +345,20 @@ func _set_intake_state(location_known: bool, complaint_known: bool) -> void:
 		var location_text = "Unknown"
 		if _location_revealed:
 			location_text = String(_active_call.get("location", "Unknown"))
-		_incoming_label.text = "Location: %s\nSeverity: %s\nWaiting calls: %d" % [
+		_incoming_label.text = "Location: %s\nSeverity: %s" % [
 			location_text,
-			String(_active_call.get("severity", "medium")).capitalize(),
-			_queued_calls.size()
+			String(_active_call.get("severity", "medium")).capitalize()
 		]
 
 func _ensure_coach_pointer() -> void:
 	if _coach_pointer_label != null:
 		return
-	var canvas = get_node_or_null("CanvasLayer")
+	var canvas = get_node_or_null("TutorialTopLayer")
 	if canvas == null:
-		return
+		canvas = CanvasLayer.new()
+		canvas.name = "TutorialTopLayer"
+		canvas.layer = 128
+		add_child(canvas)
 	_coach_pointer_label = Label.new()
 	_coach_pointer_label.name = "CoachPointer"
 	_coach_pointer_label.visible = false
@@ -312,14 +367,18 @@ func _ensure_coach_pointer() -> void:
 	_coach_pointer_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3, 1.0))
 	_coach_pointer_label.add_theme_constant_override("outline_size", 5)
 	_coach_pointer_label.add_theme_color_override("font_outline_color", Color(0.15, 0.2, 0.35, 0.95))
+	_coach_pointer_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	canvas.add_child(_coach_pointer_label)
 
 func _ensure_tutorial_focus_layer() -> void:
 	if _tutorial_focus_layer != null:
 		return
-	var canvas = get_node_or_null("CanvasLayer")
+	var canvas = get_node_or_null("TutorialTopLayer")
 	if canvas == null:
-		return
+		canvas = CanvasLayer.new()
+		canvas.name = "TutorialTopLayer"
+		canvas.layer = 128
+		add_child(canvas)
 	_tutorial_focus_layer = Control.new()
 	_tutorial_focus_layer.name = "TutorialFocusLayer"
 	_tutorial_focus_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -340,12 +399,30 @@ func _ensure_tutorial_focus_layer() -> void:
 func _update_tutorial_focus_layout() -> void:
 	if _tutorial_focus_layer == null or _tutorial_focus_target == null:
 		return
-	if not _tutorial_focus_target.is_visible_in_tree():
-		_hide_coach_pointer()
-		return
+	if typeof(_tutorial_focus_target) == TYPE_OBJECT:
+		if _tutorial_focus_target is Control:
+			if not _tutorial_focus_target.is_visible_in_tree():
+				_hide_coach_pointer()
+				return
+		elif _tutorial_focus_target is Window:
+			if not _tutorial_focus_target.visible:
+				_hide_coach_pointer()
+				return
 
-	var vp = get_viewport().get_visible_rect().size
-	var rect = _tutorial_focus_target.get_global_rect().grow(8.0)
+	var top_parent: Viewport = get_viewport()
+	if typeof(_tutorial_focus_target) == TYPE_OBJECT and _tutorial_focus_target is Node and _tutorial_focus_target.is_inside_tree():
+		top_parent = _tutorial_focus_target.get_viewport()
+		
+	var vp = top_parent.get_visible_rect().size
+	var rect: Rect2
+	if _tutorial_focus_target is Control:
+		rect = _tutorial_focus_target.get_global_rect()
+		rect = rect.grow(8.0)
+	elif _tutorial_focus_target is Window:
+		rect = Rect2(Vector2.ZERO, _tutorial_focus_target.size).grow(8.0)
+	else:
+		return
+		
 	var left = clamp(rect.position.x, 0.0, vp.x)
 	var top = clamp(rect.position.y, 0.0, vp.y)
 	var right = clamp(rect.position.x + rect.size.x, 0.0, vp.x)
@@ -371,7 +448,7 @@ func _update_tutorial_focus_layout() -> void:
 	right_block.size = Vector2(max(0.0, vp.x - right), max(0.0, bottom - top))
 	right_block.visible = true
 
-func _show_tutorial_focus(target: Control) -> void:
+func _show_tutorial_focus(target: Variant) -> void:
 	if not _is_interactive_tutorial:
 		return
 	if target == null:
@@ -380,6 +457,23 @@ func _show_tutorial_focus(target: Control) -> void:
 	_ensure_tutorial_focus_layer()
 	if _tutorial_focus_layer == null:
 		return
+		
+	var top_parent: Node = self
+	if typeof(target) == TYPE_OBJECT and target is Node and target.is_inside_tree():
+		top_parent = target.get_viewport()
+	var canvas = top_parent.get_node_or_null("TutorialTopLayer")
+	if canvas == null:
+		canvas = CanvasLayer.new()
+		canvas.name = "TutorialTopLayer"
+		canvas.layer = 128
+		top_parent.add_child(canvas)
+		
+	if _tutorial_focus_layer.get_parent() != canvas:
+		if _tutorial_focus_layer.get_parent():
+			_tutorial_focus_layer.get_parent().remove_child(_tutorial_focus_layer)
+		canvas.add_child(_tutorial_focus_layer)
+		canvas.move_child(_tutorial_focus_layer, -1)
+		
 	_tutorial_focus_target = target
 	_tutorial_focus_layer.visible = true
 	_update_tutorial_focus_layout()
@@ -410,6 +504,8 @@ func _hide_coach_pointer() -> void:
 		_coach_pointer_tween = null
 	if _coach_pointer_label:
 		_coach_pointer_label.visible = false
+	if _tutorial_proceed_lbl:
+		_tutorial_proceed_lbl.visible = false
 	_hide_tutorial_focus()
 
 func _point_coach_at(target: Control, prompt: String) -> void:
@@ -424,13 +520,49 @@ func _point_coach_at(target: Control, prompt: String) -> void:
 	if _coach_pointer_tween:
 		_coach_pointer_tween.kill()
 		_coach_pointer_tween = null
+		
+	var top_parent: Node = self
+	if target.is_inside_tree():
+		top_parent = target.get_viewport()
+	var canvas = top_parent.get_node_or_null("TutorialTopLayer")
+	if canvas == null:
+		canvas = CanvasLayer.new()
+		canvas.name = "TutorialTopLayer"
+		canvas.layer = 128
+		top_parent.add_child(canvas)
+		
+	if _coach_pointer_label.get_parent() != canvas:
+		if _coach_pointer_label.get_parent():
+			_coach_pointer_label.get_parent().remove_child(_coach_pointer_label)
+		canvas.add_child(_coach_pointer_label)
+		
+	if _tutorial_proceed_lbl:
+		_tutorial_proceed_lbl.visible = true
 
-	_coach_pointer_label.text = "%s >>>" % prompt
+	_coach_pointer_label.text = "%s" % prompt
+	_coach_pointer_label.custom_minimum_size = Vector2(400, 30)
+	_coach_pointer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var target_rect = target.get_global_rect()
-	var base_pos = Vector2(
-		target_rect.position.x + max(6.0, target_rect.size.x * 0.12),
-		target_rect.position.y - 28.0
-	)
+		
+	var vp = top_parent.get_visible_rect().size
+	var label_height = _coach_pointer_label.get_minimum_size().y
+	var base_y = target_rect.position.y - label_height - 10.0
+	if prompt == "Dispatch":
+		# Pin directly above the target button instead of floating upward.
+		base_y = target_rect.position.y - label_height - 8.0
+	elif prompt == "Answer Call":
+		base_y = target_rect.position.y + target_rect.size.y + 10.0
+		
+	if base_y < 10:
+		base_y = target_rect.position.y + target_rect.size.y + 10.0
+		
+	var base_x = target_rect.position.x + (target_rect.size.x / 2.0) - 200
+	if base_x < 10:
+		base_x = 10
+	elif base_x + 400 > vp.x - 10:
+		base_x = vp.x - 410
+		
+	var base_pos = Vector2(base_x, base_y)
 	_coach_pointer_label.global_position = base_pos
 	_coach_pointer_label.visible = true
 	_show_tutorial_focus(target)
@@ -454,22 +586,88 @@ func _start_intake_prompt() -> void:
 			_response_prompt_label.text = "Intake step 1/2: Ask for location first (and callback number)."
 		return
 
+	# If the scenario uses the new transcript-based options for intake, skip the hardcoded buttons
+	if not _active_call.is_empty():
+		var transcript: Array = _active_call.get("transcript", [])
+		if transcript.size() > 0 and typeof(transcript[0]) == TYPE_DICTIONARY and transcript[0].has("options"):
+			_intake_stage = -1
+			_begin_call_transcript_after_intake()
+			return
+
 	if _typed_row:
 		_typed_row.visible = false
 	if _response_prompt_label:
 		_response_prompt_label.text = "Intake step 1/2: Ask for exact location."
 	if _choices_box:
+		var diff = "easy"
+		var game_state = get_node_or_null("/root/GameState")
+		if game_state and game_state.has_method("get_profressional_difficulty"):
+			diff = String(game_state.call("get_profressional_difficulty"))
+		var num_distractors = 1
+		if diff == "medium":
+			num_distractors = 2
+		elif diff == "hard":
+			num_distractors = 3
+			
+		# Use context-free distractors at intake step 1 — no scenario info is known yet,
+		# so options must make sense to a caller who has said nothing beyond connecting.
+		var _intake_step1_distractors = [
+			{"text": "Please hold for a few minutes.", "feedback": "Never place an emergency caller on hold before establishing their location and situation."},
+			{"text": "We are busy, what do you want?", "feedback": "Highly unprofessional. 911 dispatchers must remain calm, objective, and immediately establish the emergency."},
+			{"text": "Before we begin, do you agree to be recorded?", "feedback": "All 911 calls are recorded by default. Asking this delays critical life-saving information."},
+			{"text": "How are you doing today?", "feedback": "Casual small talk wastes valuable time. 911 is for emergencies only."},
+			{"text": "Hello, who is speaking?", "feedback": "Names are less important than the location. If the call drops, knowing their name won't help you find them."},
+			{"text": "Are you calling to report a non-emergency?", "feedback": "Never assume a call is a non-emergency until you have gathered the facts."},
+			{"text": "Please call back later, we are experiencing high call volumes.", "feedback": "It is illegal and extremely dangerous to tell an emergency caller to call back later."},
+			{"text": "This line is for emergencies only, make it quick.", "feedback": "Hostile behavior can panic the caller and prevent them from providing clear information."},
+			{"text": "If this is a prank call, we will trace your location.", "feedback": "Accusing a caller before they speak wastes time and could delay response to a real emergency."},
+			{"text": "You have reached 911, please leave a message.", "feedback": "911 is a live emergency service. Voicemail delays emergency response indefinitely."}
+		]
+		_intake_step1_distractors.shuffle()
+		var bad_texts: Array = _intake_step1_distractors
+
 		var location_btn = Button.new()
 		location_btn.text = "What is your exact location?"
 		location_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_style_choice_button(location_btn, _ui_scale_factor())
 		location_btn.pressed.connect(Callable(self, "_on_intake_question_pressed").bind(0))
-		_choices_box.add_child(location_btn)
-		_animate_choice_button_attention(location_btn)
+		
+		var btns = [location_btn]
+		for i in range(num_distractors):
+			var bad_btn = Button.new()
+			bad_btn.text = bad_texts[i]["text"]
+			bad_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_style_choice_button(bad_btn, _ui_scale_factor())
+			bad_btn.pressed.connect(Callable(self, "_on_wrong_intake_pressed").bind(bad_texts[i]["feedback"]))
+			btns.append(bad_btn)
+			
+		btns.shuffle()
+		_layout_choice_buttons(btns)
 		if _is_interactive_tutorial:
 			if _tutorial_label:
 				_tutorial_label.text = "First step: ask where the caller is."
+			# Scroll the dialog to reveal the buttons
+			_scroll_dialog_to_bottom()
+			# Spotlight the entire choices box so both options are visible
+			await get_tree().process_frame
+			await get_tree().process_frame
+			if is_instance_valid(_choices_box):
+				_show_tutorial_focus(_choices_box)
 			_point_coach_at(location_btn, "Ask location")
+
+func _on_wrong_intake_pressed(explanation: String = "") -> void:
+	if _feedback_dialog:
+		_feedback_popup_context = ""
+		_apply_dialog_color_and_juice(false, true)
+		var msg = "Unsafe dialogue choice."
+		if explanation != "":
+			msg += "\n\nWhy:\n" + explanation
+		else:
+			msg += "\n\nAlways ask for critical information directly or provide safe guidance."
+		_feedback_dialog.dialog_text = msg
+		_feedback_dialog.popup_centered(Vector2i(600, 200))
+		_apply_dialog_juice(false, true)
+
 
 func _on_intake_question_pressed(step: int) -> void:
 	if _active_call.is_empty():
@@ -480,32 +678,133 @@ func _on_intake_question_pressed(step: int) -> void:
 		_append_transcript_line("Caller", "We are at %s." % String(_active_call.get("location", "Unknown location")))
 		_set_intake_state(true, false)
 		_intake_stage = 1
+		
+		if _feedback_dialog:
+			_feedback_popup_context = ""
+			_apply_dialog_color_and_juice(true, false)
+			_feedback_dialog.dialog_text = "Correct Choice.\n\nYour Action: What is your exact location?\n\nWhy:\nEstablishing the location immediately ensures we know where to send help even if the call drops."
+			_feedback_dialog.popup_centered(Vector2i(600, 200))
+			_apply_dialog_juice(true, false)
+
 		if _response_prompt_label:
 			_response_prompt_label.text = "Intake step 2/2: Ask what happened."
 		if _choices_box:
+			var diff = "easy"
+			var game_state = get_node_or_null("/root/GameState")
+			if game_state and game_state.has_method("get_profressional_difficulty"):
+				diff = String(game_state.call("get_profressional_difficulty"))
+			var num_distractors = 1
+			if diff == "medium":
+				num_distractors = 2
+			elif diff == "hard":
+				num_distractors = 3
+				
+			# Use context-free distractors at intake step 2 — location was just revealed
+			# but we still have no complaint info, so options should not reference the emergency type.
+			var _intake_step2_distractors = [
+				{"text": "Does anyone at that location have medical insurance?", "feedback": "Emergency dispatch is based on need, not insurance or ability to pay."},
+				{"text": "I'll send emergency response units right away, please hold.", "feedback": "You cannot dispatch units until you know WHAT the emergency is. Different emergencies require different units."},
+				{"text": "Can I get your full name and phone number for the record?", "feedback": "Bureaucratic details should not delay finding out the nature of the emergency."},
+				{"text": "Are you the owner of the property at that location?", "feedback": "Property ownership is irrelevant to dispatching life-saving emergency services."},
+				{"text": "Please stay calm and wait outside for responders to arrive.", "feedback": "Dangerous advice. If there is an active shooter or violent threat outside, you just put the caller in danger."},
+				{"text": "Can you take a picture of the scene and send it to us?", "feedback": "Never ask a caller to put themselves in danger to gather evidence or media."},
+				{"text": "Okay, units are dispatched. You can hang up now.", "feedback": "Never hang up before establishing the nature of the emergency and providing safety instructions."},
+				{"text": "Are you willing to file a formal report about this?", "feedback": "You haven't established what is happening yet; assuming it requires a report delays immediate response."},
+				{"text": "Is the weather clear where you are right now?", "feedback": "Irrelevant small talk delays dispatching the correct units."},
+				{"text": "Have you tried asking a neighbor for help first?", "feedback": "Dismissive and dangerous. They called 911 for professional help."}
+			]
+			_intake_step2_distractors.shuffle()
+			var bad_texts: Array = _intake_step2_distractors
+
 			var complaint_btn = Button.new()
 			complaint_btn.text = "Tell me what happened."
 			complaint_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			_style_choice_button(complaint_btn, _ui_scale_factor())
 			complaint_btn.pressed.connect(Callable(self, "_on_intake_question_pressed").bind(1))
-			_choices_box.add_child(complaint_btn)
-			_animate_choice_button_attention(complaint_btn)
+			
+			var btns = [complaint_btn]
+			for i in range(num_distractors):
+				var bad_btn = Button.new()
+				bad_btn.text = bad_texts[i]["text"]
+				bad_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				_style_choice_button(bad_btn, _ui_scale_factor())
+				bad_btn.pressed.connect(Callable(self, "_on_wrong_intake_pressed").bind(bad_texts[i]["feedback"]))
+				btns.append(bad_btn)
+				
+			btns.shuffle()
+			_layout_choice_buttons(btns)
 			if _is_interactive_tutorial:
-				if _tutorial_label:
-					_tutorial_label.text = "Great. Next ask what is happening."
-				_point_coach_at(complaint_btn, "Ask complaint")
+				# First: wait for the Action Feedback dialog to be closed by the player
+				if _feedback_dialog and _feedback_dialog.visible:
+					var ok_btn = _feedback_dialog.get_ok_button()
+					if ok_btn:
+						_show_tutorial_focus(ok_btn)
+						_point_coach_at(ok_btn, "Action Feedback shows how your choice affects the situation. Click OK to continue.")
+					await _feedback_dialog.confirmed
+				# Then: show Read Reply
+				if _chat_box and _chat_box.get_parent():
+					_scroll_dialog_to_top()
+					_point_coach_at(_chat_box.get_parent(), "Read reply")
+				await get_tree().create_timer(2.5).timeout
+				if is_instance_valid(complaint_btn):
+					if _tutorial_label:
+						_tutorial_label.text = "Great. Next ask what is happening."
+					# Scroll to reveal and spotlight the choices box
+					_scroll_dialog_to_bottom()
+					await get_tree().process_frame
+					await get_tree().process_frame
+					if is_instance_valid(_choices_box):
+						_show_tutorial_focus(_choices_box)
+					_point_coach_at(complaint_btn, "Ask complaint")
 		return
 
 	_append_transcript_line("Dispatcher", "Tell me what happened.")
-	_append_transcript_line("Caller", String(_active_call.get("title", "There is an emergency and we need help.")))
+	
+	var first_caller_line = String(_active_call.get("title", "There is an emergency and we need help."))
+	if not _active_call.is_empty():
+		var transcript: Array = _active_call.get("transcript", [])
+		for line in transcript:
+			if typeof(line) == TYPE_DICTIONARY and String(line.get("speaker", "Caller")).to_lower() == "caller":
+				var txt = String(line.get("text", ""))
+				if txt != "":
+					first_caller_line = txt
+					break
+
+	_append_transcript_line("Caller", first_caller_line)
 	_set_intake_state(true, true)
 	_intake_stage = -1
-	if _is_interactive_tutorial and _tutorial_label:
-		_tutorial_label.text = "Nice intake. Now make a safe response choice."
-	_begin_call_transcript_after_intake()
+	
+	if _feedback_dialog:
+		_feedback_popup_context = ""
+		_apply_dialog_color_and_juice(true, false)
+		_feedback_dialog.dialog_text = "Correct Choice.\n\nYour Action: Tell me what happened.\n\nWhy:\nGathering the nature of the emergency is the crucial second step to dispatch the appropriate response units."
+		_feedback_dialog.popup_centered(Vector2i(600, 200))
+		_apply_dialog_juice(true, false)
+		
+	if _is_interactive_tutorial:
+		# Wait for the Action Feedback to be closed before showing Read Reply
+		if _feedback_dialog and _feedback_dialog.visible:
+			var ok_btn = _feedback_dialog.get_ok_button()
+			if ok_btn:
+				_show_tutorial_focus(ok_btn)
+				_point_coach_at(ok_btn, "Action Feedback explains your choice. Click OK to continue.")
+			await _feedback_dialog.confirmed
+		if _chat_box and _chat_box.get_parent():
+			_scroll_dialog_to_top()
+			_point_coach_at(_chat_box.get_parent(), "Read reply")
+		await get_tree().create_timer(2.5).timeout
+		if _tutorial_label:
+			_tutorial_label.text = "Nice intake. Now make a safe response choice."
+			
+	_begin_call_transcript_after_intake(true)
 
 func _begin_call_transcript_after_intake(skip_first_caller_line: bool = false) -> void:
 	_caller_lines.clear()
+	
+	if _selected_mode_id != "easy_multiple_choice":
+		_show_player_choices()
+		return
+		
 	var transcript: Array = _active_call.get("transcript", [])
 	for raw_line in transcript:
 		if typeof(raw_line) != TYPE_DICTIONARY:
@@ -513,15 +812,26 @@ func _begin_call_transcript_after_intake(skip_first_caller_line: bool = false) -
 		var line: Dictionary = raw_line
 		var speaker = String(line.get("speaker", "Caller")).strip_edges()
 		var text = String(line.get("text", "")).strip_edges()
+		
+		# NEW — pass options entries through as special "choice" turns:
+		if line.has("options"):
+			_caller_lines.append({
+				"speaker": speaker,
+				"options": line.get("options", [])
+			})
+			continue
+			
 		if text == "":
 			continue
 		if _is_redundant_911_intake_prompt(speaker, text):
 			continue
 		_caller_lines.append({"speaker": speaker, "text": text})
 	_caller_line_index = 0
-	if skip_first_caller_line and _caller_lines.size() > 0:
-		if String(_caller_lines[0].get("speaker", "")) == "Caller":
-			_caller_line_index = 1
+	if skip_first_caller_line:
+		for i in range(_caller_lines.size()):
+			if String(_caller_lines[i].get("speaker", "")) == "Caller":
+				_caller_line_index = i + 1
+				break
 	
 	if _caller_lines.is_empty() or _caller_line_index >= _caller_lines.size():
 		_show_player_choices()
@@ -719,7 +1029,8 @@ func _toggle_accordion_animated(clips: Array, details: Array, toggles: Array, he
 		if not (clips[i] is Control) or i >= details.size() or i >= heights.size() or not (details[i] is RichTextLabel):
 			continue
 		var open = should_open and i == target_index
-		_animate_accordion_clip(clips[i], details[i], float(heights[i]), open)
+		var dynamic_height = _detail_target_height(details[i]) if open else float(heights[i])
+		_animate_accordion_clip(clips[i], details[i], dynamic_height, open)
 		if i < toggles.size() and toggles[i] is Button:
 			(toggles[i] as Button).text = hide_text if open else show_text
 
@@ -736,6 +1047,8 @@ func _populate_shift_review_list() -> void:
 		var sum_lbl = Label.new()
 		sum_lbl.text = popup_msg
 		sum_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sum_lbl.custom_minimum_size = Vector2(800, 0)
+		sum_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		sum_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		sum_lbl.add_theme_font_size_override("font_size", 16)
 		sum_lbl.add_theme_color_override("font_color", Color8(34, 46, 62))
@@ -764,6 +1077,8 @@ func _populate_shift_review_list() -> void:
 			continue
 		var item: Dictionary = review
 		var card = PanelContainer.new()
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
+		card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		var card_style = StyleBoxFlat.new()
 		card_style.bg_color = Color8(255, 238, 208)
 		card_style.corner_radius_top_left = 10
@@ -779,6 +1094,7 @@ func _populate_shift_review_list() -> void:
 		_shift_review_list.add_child(card)
 
 		var card_margin = MarginContainer.new()
+		card_margin.mouse_filter = Control.MOUSE_FILTER_PASS
 		card_margin.add_theme_constant_override("margin_left", 12)
 		card_margin.add_theme_constant_override("margin_top", 10)
 		card_margin.add_theme_constant_override("margin_right", 12)
@@ -786,13 +1102,16 @@ func _populate_shift_review_list() -> void:
 		card.add_child(card_margin)
 
 		var box = VBoxContainer.new()
+		box.mouse_filter = Control.MOUSE_FILTER_PASS
 		box.add_theme_constant_override("separation", 8)
 		card_margin.add_child(box)
 
 		var row = HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_PASS
 		box.add_child(row)
 
 		var complaint = Label.new()
+		complaint.mouse_filter = Control.MOUSE_FILTER_PASS
 		complaint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		complaint.text = "Call %d: %s" % [int(item.get("call_number", 0)), String(item.get("title", "Emergency"))]
 		complaint.add_theme_font_size_override("font_size", 17)
@@ -803,6 +1122,7 @@ func _populate_shift_review_list() -> void:
 		var checks_correct = int(item.get("checks_correct", 0))
 		var score = int(item.get("score", 0))
 		var summary = Label.new()
+		summary.mouse_filter = Control.MOUSE_FILTER_PASS
 		summary.text = "Score %d | %d/%d" % [score, checks_correct, checks_total]
 		summary.add_theme_font_size_override("font_size", 16)
 		summary.add_theme_color_override("font_color", Color8(52, 82, 109))
@@ -814,13 +1134,16 @@ func _populate_shift_review_list() -> void:
 		_style_choice_button(toggle, 0.88)
 		row.add_child(toggle)
 
-		var detail_clip = VBoxContainer.new()
-		detail_clip.clip_contents = true
+		var detail_clip = ScrollContainer.new()
+		detail_clip.mouse_filter = Control.MOUSE_FILTER_PASS
+		detail_clip.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		detail_clip.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 		detail_clip.custom_minimum_size = Vector2(0, 0)
 		detail_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		box.add_child(detail_clip)
 
 		var detail = RichTextLabel.new()
+		detail.mouse_filter = Control.MOUSE_FILTER_PASS
 		detail.bbcode_enabled = false
 		detail.fit_content = true
 		detail.scroll_active = false
@@ -842,7 +1165,7 @@ func _populate_shift_review_list() -> void:
 			_toggle_accordion_animated(detail_clips, detail_nodes, toggle_nodes, detail_heights, card_index, "Show details", "Hide details")
 		)
 
-func _show_shift_review(title: String, summary: String, post_action: String = "") -> void:
+func _show_shift_review(title: String, summary: String, post_action: String = "", is_tutorial_demo: bool = false) -> void:
 	if _shift_review_dialog == null:
 		_show_kid_message(title, summary)
 		return
@@ -851,11 +1174,17 @@ func _show_shift_review(title: String, summary: String, post_action: String = ""
 	_shift_review_dialog.dialog_text = summary
 	_populate_shift_review_list()
 	
-	var state = get_node_or_null("/root/GameState")
-	if state and state.has_method("clear_shift_progress"):
-		state.call("clear_shift_progress")
+	if _shift_review_other_button:
+		_shift_review_other_button.disabled = is_tutorial_demo
+	if _shift_review_proceed_button:
+		_shift_review_proceed_button.disabled = is_tutorial_demo
+	
+	if not is_tutorial_demo:
+		var state = get_node_or_null("/root/GameState")
+		if state and state.has_method("clear_shift_progress"):
+			state.call("clear_shift_progress")
 		
-	_shift_review_dialog.popup_centered(Vector2i(820, 560))
+	_shift_review_dialog.popup_centered(Vector2i(860, 520))
 
 func _collect_unselected_options(item: Dictionary) -> Array:
 	var responses: Array = item.get("responses", [])
@@ -1006,6 +1335,10 @@ func _populate_other_options_tiles() -> void:
 		_other_options_list.add_child(none_label)
 
 func _on_shift_review_custom_action(action: String) -> void:
+	if action == "proceed_next_day":
+		_shift_review_dialog.hide()
+		get_tree().reload_current_scene()
+		return
 	if action != "review_other_options":
 		return
 	if _other_options_dialog == null or _other_options_list == null:
@@ -1024,6 +1357,9 @@ func _on_shift_review_dialog_confirmed() -> void:
 		_pending_day_restart = false
 		tree.reload_current_scene()
 	elif action == "return_menu":
+		var am = get_node_or_null("/root/AudioManager")
+		if am and am.has_method("stop_all_sfx"):
+			am.stop_all_sfx()
 		tree.change_scene_to_file(main_menu_scene_path)
 	elif action == "reload_scene":
 		tree.reload_current_scene()
@@ -1032,6 +1368,11 @@ func _open_shift_review_for_manual_end(post_action: String, title: String, summa
 	var state = get_node_or_null("/root/GameState")
 	if state and state.has_method("record_shift_result"):
 		state.call("record_shift_result", _total_score, _calls_completed)
+	# Mark the first live call as done whenever a real shift completes so the
+	# tutorial never re-appears on Normal mode after a genuine session.
+	if state and state.has_method("get_first_live_call_done") and not state.call("get_first_live_call_done"):
+		if state.has_method("set_first_live_call_done"):
+			state.call("set_first_live_call_done")
 	_show_shift_review(title, summary, post_action)
 
 func _init_map_dimensions() -> void:
@@ -1077,11 +1418,6 @@ func _fit_map_to_viewport() -> void:
 	_world_node.scale = Vector2(fit_scale, fit_scale)
 	_map_sprite.position = offset
 	_world_node.position = offset
-	
-	if _map_high_sprite:
-		_map_high_sprite.scale = Vector2(fit_scale, fit_scale)
-		_map_high_sprite.position = offset
-		_update_map_lod(fit_scale)
 
 func _configure_world_route_source() -> void:
 	_world_node.route_file_path = route_json_res_path
@@ -1119,11 +1455,11 @@ func _on_viewport_resized() -> void:
 func _station_label_short(vtype: String) -> String:
 	match vtype:
 		"fire_truck":
-			return "FIRE"
+			return "BFP"
 		"ambulance":
-			return "HOSP"
+			return "MDRRMO"
 		_:
-			return "POLICE"
+			return "PNP"
 
 func _add_rect_poly(parent: Node2D, center: Vector2, size: Vector2, color: Color, z_index: int = 0) -> void:
 	var half = size * 0.5
@@ -1139,29 +1475,17 @@ func _add_rect_poly(parent: Node2D, center: Vector2, size: Vector2, color: Color
 	parent.add_child(poly)
 
 func _build_station_building_badge(parent: Node2D, vtype: String) -> void:
-	# Type-specific mini building, inspired by kid-friendly city-map icons.
-	match vtype:
-		"fire_truck":
-			_add_rect_poly(parent, Vector2(0, -31), Vector2(24, 7), Color8(78, 121, 196), 2)
-			_add_rect_poly(parent, Vector2(0, -24), Vector2(30, 18), Color8(226, 68, 68), 2)
-			_add_rect_poly(parent, Vector2(0, -19), Vector2(10, 8), Color8(44, 54, 72), 3)
-			_add_rect_poly(parent, Vector2(-9, -26), Vector2(5, 4), Color8(255, 241, 182), 3)
-			_add_rect_poly(parent, Vector2(0, -26), Vector2(5, 4), Color8(255, 241, 182), 3)
-			_add_rect_poly(parent, Vector2(9, -26), Vector2(5, 4), Color8(255, 241, 182), 3)
-		"ambulance":
-			_add_rect_poly(parent, Vector2(0, -31), Vector2(30, 6), Color8(146, 205, 255), 2)
-			_add_rect_poly(parent, Vector2(0, -24), Vector2(30, 18), Color8(187, 231, 255), 2)
-			_add_rect_poly(parent, Vector2(0, -24), Vector2(9, 3), Color8(229, 71, 71), 3)
-			_add_rect_poly(parent, Vector2(0, -24), Vector2(3, 9), Color8(229, 71, 71), 3)
-			_add_rect_poly(parent, Vector2(-9, -18), Vector2(6, 4), Color8(96, 154, 196), 3)
-			_add_rect_poly(parent, Vector2(9, -18), Vector2(6, 4), Color8(96, 154, 196), 3)
-		_:
-			_add_rect_poly(parent, Vector2(0, -31), Vector2(26, 6), Color8(58, 92, 163), 2)
-			_add_rect_poly(parent, Vector2(0, -24), Vector2(30, 18), Color8(89, 136, 222), 2)
-			_add_rect_poly(parent, Vector2(0, -18), Vector2(9, 8), Color8(35, 51, 77), 3)
-			_add_rect_poly(parent, Vector2(0, -27), Vector2(7, 3), Color8(255, 214, 96), 3)
-			_add_rect_poly(parent, Vector2(-9, -26), Vector2(5, 4), Color8(202, 224, 255), 3)
-			_add_rect_poly(parent, Vector2(9, -26), Vector2(5, 4), Color8(202, 224, 255), 3)
+	var pin = Polygon2D.new()
+	pin.polygon = PackedVector2Array([Vector2(-40, -80), Vector2(40, -80), Vector2(0, 0)])
+	pin.color = Color(1.0, 0.9, 0.1, 1.0)
+	pin.z_index = 10
+	var outline = Line2D.new()
+	outline.points = PackedVector2Array([Vector2(-40, -80), Vector2(40, -80), Vector2(0, 0), Vector2(-40, -80)])
+	outline.width = 4.0
+	outline.default_color = Color(0, 0, 0, 1)
+	outline.z_index = 11
+	parent.add_child(pin)
+	parent.add_child(outline)
 
 func _setup_service_station_markers() -> void:
 	if _world_node == null:
@@ -1195,32 +1519,34 @@ func _setup_service_station_markers() -> void:
 
 		var tag = Label.new()
 		tag.text = String(st.get("name", "Station"))
-		tag.position = Vector2(-78, -8)
-		tag.size = Vector2(156, 14)
+		tag.position = Vector2(-184, -20)
+		tag.size = Vector2(368, 36)
 		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		tag.add_theme_font_size_override("font_size", 8)
+		tag.add_theme_font_size_override("font_size", 20)
 		tag.add_theme_color_override("font_color", Color8(34, 48, 66))
 		tag.add_theme_constant_override("outline_size", 2)
 		tag.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.95))
 		station_node.add_child(tag)
-
 		_station_markers.append(station_node)
+		
+	if not "map_high" in map_texture_path:
+		_station_layer.visible = false
 
 func _ui_scale_factor() -> float:
 	var width = get_viewport().get_visible_rect().size.x
 	if width <= 480.0:
-		return 1.45
+		return 1.75
 	if width <= 768.0:
-		return 1.3
+		return 1.45
 	if width <= 1024.0:
-		return 1.15
+		return 1.2
 	return 1.0
 
 func _style_dispatch_button(btn: Button, base: Color, hover: Color, scale: float) -> void:
 	if btn == null:
 		return
-	btn.custom_minimum_size = Vector2(0, round(42.0 * scale))
-	btn.add_theme_font_size_override("font_size", int(round(15.0 * scale)))
+	btn.custom_minimum_size = Vector2(0, round(50.0 * scale))
+	btn.add_theme_font_size_override("font_size", int(round(17.0 * scale)))
 
 	var normal = StyleBoxFlat.new()
 	normal.bg_color = base
@@ -1249,8 +1575,8 @@ func _style_dispatch_button(btn: Button, base: Color, hover: Color, scale: float
 func _style_choice_button(btn: Button, scale: float = 1.0) -> void:
 	if btn == null:
 		return
-	btn.custom_minimum_size = Vector2(0, round(48.0 * scale))
-	btn.add_theme_font_size_override("font_size", int(round(18.0 * scale)))
+	btn.custom_minimum_size = Vector2(0, round(58.0 * scale))
+	btn.add_theme_font_size_override("font_size", int(round(20.0 * scale)))
 	btn.add_theme_color_override("font_color", Color8(32, 42, 58))
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1300,23 +1626,30 @@ func _animate_choice_button_attention(btn: Button, index: int = 0) -> void:
 	tween.set_ease(Tween.EASE_IN_OUT)
 	tween.tween_interval(delay)
 	tween.tween_property(btn, "modulate:a", 1.0, 0.25)
-	for _i in range(3):
-		tween.tween_method(_set_choice_button_pulse.bind(btn), 0.0, 1.0, 0.22)
-		tween.tween_method(_set_choice_button_pulse.bind(btn), 1.0, 0.0, 0.22)
-	tween.tween_interval(5.0)
-	tween.tween_callback(_restart_choice_button_pulse.bind(btn, index))
+	
+	var timer = Timer.new()
+	timer.wait_time = 3.0
+	btn.add_child(timer)
+	var pulses = [0]
+	
+	var pulse_func = func():
+		if not is_instance_valid(btn): return
+		if pulses[0] >= 3:
+			if is_instance_valid(timer): timer.stop()
+			return
+		pulses[0] += 1
+		var p_tween = btn.create_tween()
+		p_tween.set_trans(Tween.TRANS_SINE)
+		p_tween.set_ease(Tween.EASE_IN_OUT)
+		p_tween.tween_method(_set_choice_button_pulse.bind(btn), 0.0, 1.0, 0.22)
+		p_tween.tween_method(_set_choice_button_pulse.bind(btn), 1.0, 0.0, 0.22)
+	
+	timer.timeout.connect(pulse_func)
+	timer.start()
+	tween.tween_callback(pulse_func)
 
 func _restart_choice_button_pulse(btn: Button, index: int) -> void:
-	if btn == null or not is_instance_valid(btn) or not btn.is_visible_in_tree():
-		return
-	var tween = create_tween()
-	tween.set_trans(Tween.TRANS_SINE)
-	tween.set_ease(Tween.EASE_IN_OUT)
-	for _i in range(3):
-		tween.tween_method(_set_choice_button_pulse.bind(btn), 0.0, 1.0, 0.22)
-		tween.tween_method(_set_choice_button_pulse.bind(btn), 1.0, 0.0, 0.22)
-	tween.tween_interval(5.0)
-	tween.tween_callback(_restart_choice_button_pulse.bind(btn, index))
+	pass
 
 func _show_kid_message(title: String, message: String) -> void:
 	if _kid_message_dialog == null:
@@ -1414,10 +1747,20 @@ func _update_shift_ui() -> void:
 
 func _apply_kid_friendly_ui() -> void:
 	var scale = _ui_scale_factor()
-	var is_mobile = scale > 1.0
+	var vp = get_viewport_rect().size
+	var is_portrait = vp.y > vp.x
+	var is_mobile = scale > 1.0 or is_portrait
 	var hud_panel: PanelContainer = get_node_or_null("CanvasLayer/HUDPanel")
-	if hud_panel:
-		hud_panel.offset_bottom = max(hud_panel.offset_bottom, 232.0)
+
+	var canvas = get_node_or_null("CanvasLayer")
+	if is_portrait and canvas and not canvas.has_node("NotchPad"):
+		var notch_pad = ColorRect.new()
+		notch_pad.name = "NotchPad"
+		notch_pad.color = Color.BLACK
+		notch_pad.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		notch_pad.custom_minimum_size = Vector2(0, 100)
+		canvas.add_child(notch_pad)
+		canvas.move_child(notch_pad, 0)
 
 	if _mode_label:
 		_mode_label.add_theme_font_size_override("font_size", int(round(22.0 * scale)))
@@ -1428,24 +1771,37 @@ func _apply_kid_friendly_ui() -> void:
 		_hint_label.add_theme_font_size_override("font_size", int(round(16.0 * scale)))
 		_hint_label.add_theme_color_override("font_color", Color8(30, 84, 55))
 		_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_hint_label.custom_minimum_size = Vector2(0, round(72.0 * scale))
-		_hint_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_hint_label.custom_minimum_size = Vector2(0, 0)
+		_hint_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		_hint_label.max_lines_visible = 3
+
 	if _score_label:
-		_score_label.add_theme_font_size_override("font_size", int(round(24.0 * scale)))
+		var size = 32.0 if is_portrait else 24.0
+		_score_label.add_theme_font_size_override("font_size", int(round(size * scale)))
+		_score_label.add_theme_constant_override("outline_size", 0)
+		_score_label.add_theme_color_override("font_color", Color8(22, 32, 44))
 	if _shift_label:
-		_shift_label.add_theme_font_size_override("font_size", int(round(18.0 * scale)))
+		var size = 22.0 if is_portrait else 18.0
+		_shift_label.add_theme_font_size_override("font_size", int(round(size * scale)))
+		_shift_label.add_theme_constant_override("outline_size", 0)
+		_shift_label.add_theme_color_override("font_color", Color8(52, 82, 109))
 
 	if _dispatch_panel:
-		if is_mobile:
-			_dispatch_panel.anchor_left = 0.02
-			_dispatch_panel.anchor_right = 0.98
-			_dispatch_panel.anchor_top = 0.02
-			_dispatch_panel.anchor_bottom = 0.98
+		if is_portrait:
+			_dispatch_panel.anchor_left = 0.03
+			_dispatch_panel.anchor_right = 0.97
+			_dispatch_panel.anchor_top = 0.12
+			_dispatch_panel.anchor_bottom = 0.96
+			_dispatch_panel.offset_left = 0
+			_dispatch_panel.offset_right = 0
+			_dispatch_panel.offset_top = 0
+			_dispatch_panel.offset_bottom = 0
 		else:
-			_dispatch_panel.anchor_left = 0.08
-			_dispatch_panel.anchor_right = 0.92
-			_dispatch_panel.anchor_top = 0.03
-			_dispatch_panel.anchor_bottom = 0.97
+			_dispatch_panel.anchor_left = 0.05
+			_dispatch_panel.anchor_right = 0.95
+			_dispatch_panel.anchor_top = 0.1
+			_dispatch_panel.anchor_bottom = 0.9
+			_dispatch_panel.offset_bottom = 0.0
 
 		var panel_style = StyleBoxFlat.new()
 		panel_style.bg_color = Color8(234, 247, 255)
@@ -1460,40 +1816,111 @@ func _apply_kid_friendly_ui() -> void:
 		panel_style.border_color = Color8(89, 181, 255)
 		_dispatch_panel.add_theme_stylebox_override("panel", panel_style)
 
+	if _score_container:
+		_score_container.offset_top = 160.0 * scale if is_portrait else 24.0
+		var parent = _score_container.get_parent()
+		if parent and parent.get_node_or_null("ScoreBG") == null:
+			var bg = ColorRect.new()
+			bg.name = "ScoreBG"
+			bg.color = Color(1.0, 1.0, 1.0, 0.9)
+			var bg_style = StyleBoxFlat.new()
+			bg_style.bg_color = Color(1.0, 1.0, 1.0, 0.9)
+			bg_style.corner_radius_top_left = 8
+			bg_style.corner_radius_top_right = 8
+			bg_style.corner_radius_bottom_left = 8
+			bg_style.corner_radius_bottom_right = 8
+			parent.add_child(bg)
+			parent.move_child(bg, _score_container.get_index())
+		
+		var score_bg = parent.get_node_or_null("ScoreBG") if parent else null
+		if score_bg:
+			_score_container.reset_size()
+			score_bg.position = _score_container.position - Vector2(12, 8)
+			score_bg.size = _score_container.size + Vector2(24, 16)
+
+	var text_scale = scale * (1.6 if is_portrait else 1.0)
+
 	if _panel_header_label:
-		_panel_header_label.add_theme_font_size_override("font_size", int(round(24.0 * scale)))
+		_panel_header_label.add_theme_font_size_override("font_size", int(round(24.0 * text_scale)))
 		_panel_header_label.add_theme_color_override("font_color", Color8(22, 62, 105))
 	if _incident_summary_label:
-		_incident_summary_label.add_theme_font_size_override("font_size", int(round(18.0 * scale)))
+		_incident_summary_label.add_theme_font_size_override("font_size", int(round(18.0 * text_scale)))
 		_incident_summary_label.add_theme_color_override("font_color", Color8(44, 54, 72))
 	if _incoming_label:
-		_incoming_label.add_theme_font_size_override("font_size", int(round(13.0 * scale)))
+		_incoming_label.add_theme_font_size_override("font_size", int(round(13.0 * text_scale)))
 		_incoming_label.add_theme_color_override("font_color", Color8(72, 82, 98))
-	if _transcript_label:
-		_transcript_label.add_theme_font_size_override("normal_font_size", int(round(16.0 * scale)))
-		_transcript_label.add_theme_color_override("default_color", Color8(44, 54, 72))
+	if _chat_box:
+		for hbox in _chat_box.get_children():
+			if hbox.get_child_count() > 0:
+				for c in hbox.get_children():
+					if c is PanelContainer:
+						for pc in c.get_children():
+							if pc is RichTextLabel:
+								pc.add_theme_font_size_override("normal_font_size", int(round(16.0 * text_scale)))
 	if _response_prompt_label:
-		_response_prompt_label.add_theme_font_size_override("font_size", int(round(16.0 * scale)))
+		_response_prompt_label.add_theme_font_size_override("font_size", int(round(16.0 * text_scale)))
 		_response_prompt_label.add_theme_color_override("font_color", Color8(22, 109, 168))
 	if _timeline_label:
-		_timeline_label.add_theme_font_size_override("font_size", int(round(15.0 * scale)))
+		_timeline_label.add_theme_font_size_override("font_size", int(round(15.0 * text_scale)))
 		_timeline_label.add_theme_color_override("font_color", Color8(216, 124, 29))
 	if _response_feedback_label:
-		_response_feedback_label.add_theme_font_size_override("font_size", int(round(14.0 * scale)))
+		_response_feedback_label.add_theme_font_size_override("font_size", int(round(14.0 * text_scale)))
 		_response_feedback_label.add_theme_color_override("font_color", Color8(45, 121, 84))
 	if _assignment_label:
-		_assignment_label.add_theme_font_size_override("font_size", int(round(14.0 * scale)))
+		_assignment_label.add_theme_font_size_override("font_size", int(round(14.0 * text_scale)))
 		_assignment_label.add_theme_color_override("font_color", Color8(44, 54, 72))
 
-	_style_dispatch_button(_answer_button, Color8(104, 214, 130), Color8(126, 228, 149), scale)
-	_style_dispatch_button(_typed_submit_button, Color8(104, 193, 255), Color8(129, 205, 255), scale)
-	_style_dispatch_button(_end_call_button, Color8(255, 180, 75), Color8(255, 195, 104), scale)
-	_style_dispatch_button(_hint_button, Color8(171, 221, 255), Color8(191, 231, 255), scale)
+	_style_dispatch_button(_typed_submit_button, Color8(104, 193, 255), Color8(129, 205, 255), text_scale)
+	_style_dispatch_button(_end_call_button, Color8(255, 180, 75), Color8(255, 195, 104), text_scale)
+	_style_dispatch_button(_hint_button, Color8(171, 221, 255), Color8(191, 231, 255), text_scale)
 
 	if _close_button:
-		_style_dispatch_button(_close_button, Color8(255, 140, 112), Color8(255, 161, 135), scale)
-		_close_button.custom_minimum_size = Vector2(round(58.0 * scale), round(52.0 * scale))
-		_close_button.add_theme_font_size_override("font_size", int(round(24.0 * scale)))
+		_style_dispatch_button(_close_button, Color8(255, 140, 112), Color8(255, 161, 135), text_scale)
+		_close_button.custom_minimum_size = Vector2(round(58.0 * text_scale), round(52.0 * text_scale))
+		_close_button.add_theme_font_size_override("font_size", int(round(24.0 * text_scale)))
+
+	if _toggle_hud_button:
+		var btn_scale = scale * (2.0 if is_portrait else 1.0)
+		_toggle_hud_button.position = Vector2(16, 116) if is_portrait else Vector2(16, 48)
+		_toggle_hud_button.size = Vector2(64 * btn_scale, 64 * btn_scale)
+		_toggle_hud_button.custom_minimum_size = Vector2(64 * btn_scale, 64 * btn_scale)
+		_toggle_hud_button.add_theme_font_size_override("font_size", int(round(32 * btn_scale)))
+		var style = _toggle_hud_button.get_theme_stylebox("normal")
+		if style and style is StyleBoxFlat:
+			style.corner_radius_top_left = int(round(32 * btn_scale))
+			style.corner_radius_top_right = int(round(32 * btn_scale))
+			style.corner_radius_bottom_left = int(round(32 * btn_scale))
+			style.corner_radius_bottom_right = int(round(32 * btn_scale))
+			
+		if _hud_panel:
+			if is_portrait:
+				_hud_panel.position = Vector2(16 + 64 * btn_scale + 8, 116)
+				_hud_panel.custom_minimum_size = Vector2(vp.x - (16 + 64 * btn_scale + 32), 0)
+				_hud_panel.size = Vector2(vp.x - (16 + 64 * btn_scale + 32), 160)
+				_hud_panel.clip_contents = true
+				if _mode_label:
+					_mode_label.add_theme_font_size_override("font_size", int(round(28 * scale)))
+				if _hint_label:
+					_hint_label.add_theme_font_size_override("font_size", int(round(24 * scale)))
+			else:
+				_hud_panel.position = Vector2(16 + 64 * btn_scale + 8, 48)
+				_hud_panel.custom_minimum_size = Vector2(vp.x / 3.0, 0)
+				_hud_panel.size = Vector2(vp.x / 3.0, 160)
+				_hud_panel.clip_contents = true
+			
+	
+	var settings_btn: Button = get_node_or_null("CanvasLayer/SettingsButton")
+	if settings_btn:
+		var btn_scale = scale * (2.0 if is_portrait else 1.0)
+		settings_btn.offset_top = 116.0 if is_portrait else 48.0
+		settings_btn.offset_left = -78.0 * btn_scale
+		settings_btn.offset_bottom = settings_btn.offset_top + (68.0 * btn_scale)
+		settings_btn.custom_minimum_size = Vector2(68 * btn_scale, 68 * btn_scale)
+		settings_btn.expand_icon = true
+		settings_btn.add_theme_font_size_override("font_size", int(round(32 * btn_scale)))
+
+	if is_mobile and _score_container:
+		_score_container.offset_top = 120.0 if is_portrait else 72.0
 
 	if _typed_input:
 		_typed_input.custom_minimum_size = Vector2(0, round(42.0 * scale))
@@ -1544,6 +1971,28 @@ func _input(event) -> void:
 		if key_event.pressed and not key_event.echo and key_event.ctrl_pressed and key_event.shift_pressed and key_event.keycode == KEY_F8:
 			_activate_test_shift_cheat()
 			return
+		
+		# TEMPORARY CHEATS FOR PERFECTIONIST MODE (TODO: REMOVE LATER)
+		if key_event.pressed and not key_event.echo and key_event.ctrl_pressed:
+			if key_event.keycode == KEY_K:
+				_wrong_advice_count = 0
+				print("CHEAT: Forced safe advice. Enabling dispatch.")
+				_dispatch_phase_unlocked = true
+				_set_vehicle_buttons_enabled(true)
+				if _vehicle_grid:
+					_vehicle_grid.visible = true
+				if _assignment_label:
+					_assignment_label.text = "Dispatch unlocked via Cheat!"
+				_score_and_show_feedback("safe", "CHEAT: Safe Action", "Bypassed via Ctrl+K cheat.")
+				return
+			if key_event.keycode == KEY_EQUAL: # Ctrl +
+				_wrong_advice_count += 1
+				print("CHEAT: Increased anger/frustration to ", _wrong_advice_count)
+				return
+			if key_event.keycode == KEY_MINUS: # Ctrl -
+				_wrong_advice_count = max(0, _wrong_advice_count - 1)
+				print("CHEAT: Decreased anger/frustration to ", _wrong_advice_count)
+				return
 
 	# ── Freeze map input while a call is active ──
 	if _call_active:
@@ -1583,8 +2032,6 @@ func _input(event) -> void:
 		_drag_last = motion.position
 		_world_node.position += delta
 		_map_sprite.position += delta
-		if _map_high_sprite:
-			_map_high_sprite.position += delta
 		_clamp_map_position()
 
 	# Touch Input
@@ -1610,8 +2057,6 @@ func _input(event) -> void:
 			_drag_last = drag.position
 			_world_node.position += delta
 			_map_sprite.position += delta
-			if _map_high_sprite:
-				_map_high_sprite.position += delta
 			_clamp_map_position()
 			
 		elif _touch_points.size() == 2:
@@ -1621,13 +2066,12 @@ func _input(event) -> void:
 			
 			var current_dist = p1.distance_to(p2)
 			
-			# Reconstruct previous distance using velocity
 			var old_p1 = p1
 			var old_p2 = p2
-			if drag.position == p1:
-				old_p1 = p1 - drag.velocity * get_process_delta_time()
+			if drag.index == _touch_points.keys()[0]:
+				old_p1 = p1 - drag.relative
 			else:
-				old_p2 = p2 - drag.velocity * get_process_delta_time()
+				old_p2 = p2 - drag.relative
 				
 			var old_dist = old_p1.distance_to(old_p2)
 			
@@ -1647,7 +2091,7 @@ func _activate_test_shift_cheat() -> void:
 		_score_label.text = "Score: %d" % _total_score
 	_update_shift_ui()
 	if _hint_label:
-		_hint_label.text = "Testing cheat active: shift completion unlocked. Press Home to open evaluation."
+		pass
 	_show_kid_message("Testing Cheat Enabled", "Shift completion is unlocked for quick testing.\nUse Ctrl+Shift+F8 in route scene to re-apply anytime.")
 
 func _zoom_at(screen_pos: Vector2, factor: float) -> void:
@@ -1660,16 +2104,9 @@ func _zoom_at(screen_pos: Vector2, factor: float) -> void:
 	var delta_map = (1.0 - actual_factor) * (screen_pos - _map_sprite.position)
 	_world_node.position += delta_world
 	_map_sprite.position += delta_map
-	if _map_high_sprite:
-		_map_high_sprite.position += delta_map
-		
 	_current_scale = new_scale
 	_world_node.scale = Vector2(_current_scale, _current_scale)
 	_map_sprite.scale = Vector2(_current_scale, _current_scale)
-	if _map_high_sprite:
-		_map_high_sprite.scale = Vector2(_current_scale, _current_scale)
-		_update_map_lod(_current_scale)
-		
 	_user_zoomed = true
 	_clamp_map_position()
 
@@ -1700,35 +2137,161 @@ func _clamp_map_position() -> void:
 	var clamped = _clamped_map_offset(_map_sprite.position)
 	_map_sprite.position = clamped
 	_world_node.position = clamped
-	if _map_high_sprite:
-		_map_high_sprite.position = clamped
 
-func _update_map_lod(scale_val: float) -> void:
-	if _map_high_sprite == null:
+func _on_toggle_hud_pressed() -> void:
+	var am = get_node_or_null("/root/AudioManager")
+	if am:
+		am.play_click()
+	if _hud_panel == null:
 		return
-	var fade_start = _min_scale * 1.35
-	var fade_end = _min_scale * 2.2
-	if scale_val <= fade_start:
-		_map_high_sprite.modulate.a = 0.0
-	elif scale_val >= fade_end:
-		_map_high_sprite.modulate.a = 1.0
-	else:
-		_map_high_sprite.modulate.a = (scale_val - fade_start) / (fade_end - fade_start)
+	var showing = not _hud_panel.visible
+	_hud_panel.visible = showing
+	if showing and _toggle_hud_button:
+		# Position panel: top-left corner touches bottom-right of info button
+		var btn_pos = _toggle_hud_button.position
+		var btn_size = _toggle_hud_button.size
+		_hud_panel.position = Vector2(btn_pos.x, btn_pos.y + btn_size.y + 4)
+		# Reset tip timer on open
+		if _tip_timer:
+			_tip_timer.stop()
+			_tip_timer.start()
+
+func _setup_tip_timer() -> void:
+	if _tip_timer != null:
+		return
+	_tip_timer = Timer.new()
+	_tip_timer.name = "TipTimer"
+	_tip_timer.one_shot = false
+	_tip_timer.wait_time = 4.0
+	add_child(_tip_timer)
+	_tip_timer.timeout.connect(_advance_tip)
+	_tip_timer.start()
+
+func _advance_tip() -> void:
+	if _tips_list.is_empty() or _hint_label == null:
+		return
+	_tip_index = (_tip_index + 1) % _tips_list.size()
+	var tip = _tips_list[_tip_index]
+	_hint_label.text = tip
+	# Adjust wait time based on tip length: ~0.06s per char, clamp 3-6s
+	if _tip_timer:
+		_tip_timer.wait_time = clamp(tip.length() * 0.06, 3.0, 6.0)
+
+func _on_tip_clicked(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_advance_tip()
+		if _tip_timer:
+			_tip_timer.stop()
+			_tip_timer.start()
+
 
 func _setup_hud() -> void:
+	var scale = _ui_scale_factor()
+	var vp = get_viewport_rect().size
+	var is_portrait = vp.y > vp.x
+
 	_mode_label = get_node_or_null("CanvasLayer/HUDPanel/HUDMargin/HUDContent/ModeLabel")
 	_hint_label = get_node_or_null("CanvasLayer/HUDPanel/HUDMargin/HUDContent/HintLabel")
 	_hud_content = get_node_or_null("CanvasLayer/HUDPanel/HUDMargin/HUDContent")
-	var hud_panel: PanelContainer = get_node_or_null("CanvasLayer/HUDPanel")
-	if hud_panel:
-		hud_panel.offset_bottom = max(hud_panel.offset_bottom, 232.0)
+	_hud_panel = get_node_or_null("CanvasLayer/HUDPanel")
+	if _hud_panel and _mode_label:
+		_mode_label.add_theme_font_size_override("font_size", 18)
+		_mode_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_mode_label.custom_minimum_size = Vector2(120, 0)
+		_mode_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_mode_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	if _hud_panel and _hint_label:
+		_hint_label.add_theme_font_size_override("font_size", 18)
+		_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_hint_label.custom_minimum_size = Vector2(0, 0)
+	if _hud_panel:
+		# Compact info panel — shrink to content only
+		_hud_panel.custom_minimum_size = Vector2(260, 0)
+		_hud_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		_hud_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		_hud_panel.clip_contents = false
+		_hud_panel.position = Vector2(16, 88)  # below the info button (pos 16,16 size 64)
+		_hud_panel.visible = false
+		# Force inner containers to shrink
+		var hud_margin = get_node_or_null("CanvasLayer/HUDPanel/HUDMargin")
+		if hud_margin:
+			hud_margin.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		if _hud_content:
+			_hud_content.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		if _mode_label:
+			_mode_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+			_mode_label.custom_minimum_size = Vector2(0, 0)
+		# Cap the hint label to 3 lines max — this is the key height limiter
+		if _hint_label:
+			_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_hint_label.custom_minimum_size = Vector2(0, 0)
+			_hint_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+			_hint_label.max_lines_visible = 3
+
+
+		
+		_tips_list = [
+			"Welcome to the Live Dispatch Floor!",
+			"Always pick the safest option to instruct the caller.",
+			"When ready, dispatch the right unit:",
+			"- BFP: for fires, chemical spills, and technical rescues.",
+			"- MDRRMO: transport patients safely to hospital for medical emergencies, injuries, breathing problems, AND technical operations like extrication of trapped victims or building collapse.",
+			"- PNP: violence, threats, criminal activity."
+		]
+		_tip_index = randi() % _tips_list.size()
+		if _hint_label:
+			_hint_label.text = _tips_list[_tip_index]
+			_hint_label.mouse_filter = Control.MOUSE_FILTER_STOP
+			if not _hint_label.gui_input.is_connected(_on_tip_clicked):
+				_hint_label.gui_input.connect(_on_tip_clicked)
+		_setup_tip_timer()
+		
+		if _toggle_hud_button == null:
+			_toggle_hud_button = Button.new()
+			_toggle_hud_button.name = "ToggleHUDButton"
+			_toggle_hud_button.text = "i"
+			_toggle_hud_button.add_theme_font_size_override("font_size", 32)
+			
+			var t_style = StyleBoxFlat.new()
+			t_style.bg_color = Color(0.2, 0.25, 0.35, 0.95)
+			t_style.corner_radius_top_left = 32
+			t_style.corner_radius_top_right = 32
+			t_style.corner_radius_bottom_left = 32
+			t_style.corner_radius_bottom_right = 32
+			t_style.border_width_left = 3
+			t_style.border_width_right = 3
+			t_style.border_width_top = 3
+			t_style.border_width_bottom = 3
+			t_style.border_color = Color.WHITE
+			_toggle_hud_button.add_theme_stylebox_override("normal", t_style)
+			
+			var h_style = t_style.duplicate()
+			h_style.bg_color = Color(0.3, 0.35, 0.45, 0.95)
+			_toggle_hud_button.add_theme_stylebox_override("hover", h_style)
+			_toggle_hud_button.add_theme_stylebox_override("pressed", h_style)
+			
+			_toggle_hud_button.position = Vector2(16, 16)
+			_toggle_hud_button.size = Vector2(64, 64)
+			_toggle_hud_button.pressed.connect(_on_toggle_hud_pressed)
+			
+			var toggle_canvas = get_node_or_null("CanvasLayer")
+			if toggle_canvas:
+				toggle_canvas.add_child(_toggle_hud_button)
 	_home_button = get_node_or_null("CanvasLayer/HUDPanel/HUDMargin/HUDContent/HomeButton")
 	if _home_button == null:
 		_home_button = get_node_or_null("CanvasLayer/SettingsButton")
 	if _home_button:
 		# Add a nice little hover style override to the settings button
+		var normal = StyleBoxFlat.new()
+		normal.bg_color = Color(0.2, 0.25, 0.35, 0.9)
+		normal.corner_radius_top_left = 6
+		normal.corner_radius_top_right = 6
+		normal.corner_radius_bottom_left = 6
+		normal.corner_radius_bottom_right = 6
+		_home_button.add_theme_stylebox_override("normal", normal)
+
 		var hover = StyleBoxFlat.new()
-		hover.bg_color = Color(1.0, 1.0, 1.0, 0.1)
+		hover.bg_color = Color(0.3, 0.35, 0.45, 0.9)
 		hover.corner_radius_top_left = 6
 		hover.corner_radius_top_right = 6
 		hover.corner_radius_bottom_left = 6
@@ -1736,34 +2299,41 @@ func _setup_hud() -> void:
 		_home_button.add_theme_stylebox_override("hover", hover)
 		_home_button.pressed.connect(_on_home_pressed)
 
-	if _hud_content and _minimized_call_button == null:
+	var canvas = get_node_or_null("CanvasLayer")
+	if canvas and _minimized_call_button == null:
 		_minimized_call_button = Button.new()
 		_minimized_call_button.name = "ReturnToCallButton"
 		_minimized_call_button.text = "Return to Call"
 		_minimized_call_button.visible = false
-		_minimized_call_button.custom_minimum_size = Vector2(0, 34)
-		_minimized_call_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		
+		var btn_h = 68.0 * scale * (1.5 if is_portrait else 1.0)
+		_minimized_call_button.custom_minimum_size = Vector2(0, btn_h)
+		_minimized_call_button.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		_minimized_call_button.offset_left = 32.0 * scale
+		_minimized_call_button.offset_right = -32.0 * scale
+		_minimized_call_button.offset_bottom = -64.0 * scale if not is_portrait else -140.0 * scale
+		_minimized_call_button.offset_top = _minimized_call_button.offset_bottom - btn_h
+		
 		var min_style = StyleBoxFlat.new()
 		min_style.bg_color = Color(0.8, 0.2, 0.25, 0.95)
-		min_style.corner_radius_top_left = 8
-		min_style.corner_radius_top_right = 8
-		min_style.corner_radius_bottom_left = 8
-		min_style.corner_radius_bottom_right = 8
-		min_style.border_width_left = 2
-		min_style.border_width_top = 2
-		min_style.border_width_right = 2
-		min_style.border_width_bottom = 2
+		min_style.corner_radius_top_left = 12
+		min_style.corner_radius_top_right = 12
+		min_style.corner_radius_bottom_left = 12
+		min_style.corner_radius_bottom_right = 12
+		min_style.border_width_left = 3
+		min_style.border_width_top = 3
+		min_style.border_width_right = 3
+		min_style.border_width_bottom = 3
 		min_style.border_color = Color.WHITE
 		_minimized_call_button.add_theme_stylebox_override("normal", min_style)
 		_minimized_call_button.add_theme_stylebox_override("hover", min_style)
 		_minimized_call_button.add_theme_color_override("font_color", Color.WHITE)
+		_minimized_call_button.add_theme_font_size_override("font_size", int(round(28.0 * scale * (1.5 if is_portrait else 1.0))))
 		_minimized_call_button.pressed.connect(_on_minimized_call_pressed)
-		if _home_button and _home_button.get_parent() == _hud_content:
-			_hud_content.add_child(_minimized_call_button)
-			_hud_content.move_child(_minimized_call_button, _home_button.get_index())
-		else:
-			_hud_content.add_child(_minimized_call_button)
-
+		
+		canvas.add_child(_minimized_call_button)
+		# Move it to front
+		canvas.move_child(_minimized_call_button, -1)
 	if _hud_content and _next_day_button == null:
 		_next_day_button = Button.new()
 		_next_day_button.name = "ProceedNextDayButton"
@@ -1793,31 +2363,33 @@ func _setup_hud() -> void:
 			_hud_content.add_child(_next_day_button)
 
 	# Add score label (top-left area of HUD)
-	var canvas = get_node_or_null("CanvasLayer")
+	canvas = get_node_or_null("CanvasLayer")
 	if canvas:
+		_score_container = VBoxContainer.new()
+		_score_container.name = "ScoreContainer"
+		_score_container.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		_score_container.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_score_container.offset_top = 16.0
+		_score_container.add_theme_constant_override("separation", 12)
+		canvas.add_child(_score_container)
+		
 		_score_label = Label.new()
 		_score_label.name = "ScoreLabel"
 		_score_label.text = "Score: 0"
-		_score_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-		_score_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-		_score_label.offset_top = 16.0
 		_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_score_label.add_theme_font_size_override("font_size", 26)
 		_score_label.add_theme_constant_override("outline_size", 8)
 		_score_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0))
 		_score_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
-		canvas.add_child(_score_label)
+		_score_container.add_child(_score_label)
 
 		_shift_label = Label.new()
 		_shift_label.name = "ShiftLabel"
-		_shift_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-		_shift_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-		_shift_label.offset_top = 50.0
 		_shift_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_shift_label.add_theme_font_size_override("font_size", 20)
 		_shift_label.add_theme_constant_override("outline_size", 5)
 		_shift_label.add_theme_color_override("font_outline_color", Color(1.0, 1.0, 1.0, 0.95))
-		canvas.add_child(_shift_label)
+		_score_container.add_child(_shift_label)
 		_update_shift_ui()
 
 		_feedback_dialog = AcceptDialog.new()
@@ -1840,14 +2412,16 @@ func _setup_hud() -> void:
 		_feedback_dialog.add_theme_stylebox_override("embedded_border", feedback_style)
 		_feedback_dialog.add_theme_color_override("title_color", Color8(44, 54, 72))
 		var dialog_label = _feedback_dialog.get_label()
+		scale = _ui_scale_factor()
 		if dialog_label:
 			dialog_label.custom_minimum_size = Vector2(360, 0)
 			dialog_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			dialog_label.add_theme_font_size_override("font_size", 19)
+			dialog_label.add_theme_font_size_override("font_size", int(round(19 * scale)))
 			dialog_label.add_theme_color_override("font_color", Color8(44, 54, 72))
 		var feedback_ok = _feedback_dialog.get_ok_button()
 		if feedback_ok:
-			feedback_ok.add_theme_font_size_override("font_size", 17)
+			feedback_ok.add_theme_font_size_override("font_size", int(round(24 * scale)))
+			feedback_ok.custom_minimum_size = Vector2(0, round(60 * scale))
 			feedback_ok.add_theme_color_override("font_color", Color8(44, 54, 72))
 			var feedback_ok_style = StyleBoxFlat.new()
 			feedback_ok_style.bg_color = Color8(255, 205, 104)
@@ -1887,14 +2461,15 @@ func _setup_hud() -> void:
 		_kid_message_dialog.add_theme_color_override("title_color", Color8(44, 54, 72))
 		var msg_label = _kid_message_dialog.get_label()
 		if msg_label:
-			msg_label.custom_minimum_size = Vector2(420, 0)
+			msg_label.custom_minimum_size = Vector2(360, 0)
 			msg_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			msg_label.add_theme_font_size_override("font_size", 20)
+			msg_label.add_theme_font_size_override("font_size", int(round(18 * scale)))
 			msg_label.add_theme_color_override("font_color", Color8(44, 54, 72))
-		var ok_btn = _kid_message_dialog.get_ok_button()
-		if ok_btn:
-			ok_btn.add_theme_font_size_override("font_size", 18)
-			ok_btn.add_theme_color_override("font_color", Color8(44, 54, 72))
+		var kid_ok = _kid_message_dialog.get_ok_button()
+		if kid_ok:
+			kid_ok.add_theme_font_size_override("font_size", int(round(24 * scale)))
+			kid_ok.custom_minimum_size = Vector2(0, round(60 * scale))
+			kid_ok.add_theme_color_override("font_color", Color8(44, 54, 72))
 			var ok_style = StyleBoxFlat.new()
 			ok_style.bg_color = Color8(255, 205, 104)
 			ok_style.corner_radius_top_left = 10
@@ -1906,9 +2481,9 @@ func _setup_hud() -> void:
 			ok_style.border_width_right = 2
 			ok_style.border_width_bottom = 2
 			ok_style.border_color = Color(1.0, 1.0, 1.0, 0.85)
-			ok_btn.add_theme_stylebox_override("normal", ok_style)
-			ok_btn.add_theme_stylebox_override("hover", ok_style)
-			ok_btn.add_theme_stylebox_override("pressed", ok_style)
+			kid_ok.add_theme_stylebox_override("normal", ok_style)
+			kid_ok.add_theme_stylebox_override("hover", ok_style)
+			kid_ok.add_theme_stylebox_override("pressed", ok_style)
 		_kid_message_dialog.confirmed.connect(_on_kid_message_dialog_confirmed)
 		canvas.add_child(_kid_message_dialog)
 
@@ -1934,21 +2509,79 @@ func _setup_hud() -> void:
 		_shift_review_dialog.add_theme_color_override("title_color", Color8(30, 38, 54))
 		var review_label = _shift_review_dialog.get_label()
 		if review_label:
-			review_label.custom_minimum_size = Vector2(640, 56)
+			review_label.custom_minimum_size = Vector2(860, 56)
 			review_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			review_label.add_theme_font_size_override("font_size", 19)
 			review_label.add_theme_color_override("font_color", Color8(34, 46, 62))
 		var review_ok = _shift_review_dialog.get_ok_button()
 		if review_ok:
-			review_ok.add_theme_font_size_override("font_size", 17)
+			review_ok.add_theme_font_size_override("font_size", 21)
 			review_ok.add_theme_color_override("font_color", Color8(34, 46, 62))
+			review_ok.custom_minimum_size = Vector2(250, 56)
 			_style_choice_button(review_ok, 0.95)
 		_shift_review_other_button = _shift_review_dialog.add_button("Review Other Options", false, "review_other_options")
 		if _shift_review_other_button:
 			_style_choice_button(_shift_review_other_button, 0.92)
-			_shift_review_other_button.custom_minimum_size = Vector2(220, 40)
+			_shift_review_other_button.add_theme_font_size_override("font_size", 21)
+			_shift_review_other_button.custom_minimum_size = Vector2(250, 56)
+		# Proceed to Next Day button — only visible when shift can be ended
+		_shift_review_proceed_button = _shift_review_dialog.add_button("Proceed to Next Day", true, "proceed_next_day")
+		if _shift_review_proceed_button:
+			_style_choice_button(_shift_review_proceed_button, 0.92)
+			_shift_review_proceed_button.add_theme_font_size_override("font_size", 21)
+			_shift_review_proceed_button.custom_minimum_size = Vector2(250, 56)
+			
+		var action_area = _shift_review_dialog.get_ok_button().get_parent()
+		if action_area is BoxContainer:
+			action_area.alignment = BoxContainer.ALIGNMENT_CENTER
+			action_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var parent_margin = action_area.get_parent()
+			if parent_margin and parent_margin is Control:
+				parent_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+			# Pull native engine spacers out of the tree entirely so they
+			# don't interfere with index-based ordering.
+			var to_remove: Array = []
+			for c in action_area.get_children():
+				if c != _shift_review_other_button \
+						and c != _shift_review_dialog.get_ok_button() \
+						and c != _shift_review_proceed_button:
+					to_remove.append(c)
+			for c in to_remove:
+				action_area.remove_child(c)
+				c.queue_free()
+
+			# Build a clean [Review][sp1][OK][sp2][Proceed] sequence.
+			var sp1 = Control.new()
+			sp1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var sp2 = Control.new()
+			sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			action_area.add_child(sp1)
+			action_area.add_child(sp2)
+
+			# Set button size flags (no expansion — keep natural width).
+			if _shift_review_other_button:
+				_shift_review_other_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+				_shift_review_other_button.custom_minimum_size = Vector2(250, 56)
+			_shift_review_dialog.get_ok_button().size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			_shift_review_dialog.get_ok_button().custom_minimum_size = Vector2(250, 56)
+			if _shift_review_proceed_button:
+				_shift_review_proceed_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+				_shift_review_proceed_button.custom_minimum_size = Vector2(250, 56)
+
+			# After add_child the order is:
+			# 0=Review 1=OK 2=Proceed 3=sp1 4=sp2  (add_button prepended them)
+			# Force exact sequence: 0=Review 1=sp1 2=OK 3=sp2 4=Proceed
+			if _shift_review_other_button:
+				action_area.move_child(_shift_review_other_button, 0)
+			action_area.move_child(sp1, 1)
+			action_area.move_child(_shift_review_dialog.get_ok_button(), 2)
+			action_area.move_child(sp2, 3)
+			if _shift_review_proceed_button:
+				action_area.move_child(_shift_review_proceed_button, 4)
+			
 		var review_scroll = ScrollContainer.new()
-		review_scroll.custom_minimum_size = Vector2(720, 360)
+		review_scroll.custom_minimum_size = Vector2(820, 360)
 		review_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		review_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_shift_review_dialog.add_child(review_scroll)
@@ -2006,60 +2639,17 @@ func _setup_hud() -> void:
 
 	if _mode_label:
 		_mode_label.text = "Mode: %s | Day %d" % [String(mode.get("title", "Dispatch Mode")), _current_day]
-	if _hint_label:
-		if String(mode.get("input_style", "multiple_choice")) == "typed_nlp":
-			_hint_label.text = "Ask location and complaint first, then guide and dispatch. Day pace x%.2f" % _day_difficulty_scale
-		else:
-			_hint_label.text = "Tap alerts, ask location and complaint, answer safely, dispatch the best unit. Day pace x%.2f" % _day_difficulty_scale
 
 var _pause_dialog: ConfirmationDialog
 
 func _on_home_pressed() -> void:
-	if _pause_dialog == null:
-		_pause_dialog = ConfirmationDialog.new()
-		_pause_dialog.title = "Paused"
-		_pause_dialog.dialog_text = "Game paused. Resume to continue or exit to main menu."
-		_pause_dialog.process_mode = Node.PROCESS_MODE_ALWAYS
-		get_node("CanvasLayer").add_child(_pause_dialog)
-		var ok_btn = _pause_dialog.get_ok_button()
-		if ok_btn:
-			ok_btn.text = "Exit to Menu"
-		var cancel_btn = _pause_dialog.get_cancel_button()
-		if cancel_btn:
-			cancel_btn.text = "Resume"
-			
-		var early_btn = _pause_dialog.add_button("End Shift Early", true, "early_end")
-			
-		_pause_dialog.confirmed.connect(func():
-			var tree = get_tree()
-			if tree:
-				tree.paused = false
-				tree.change_scene_to_file(main_menu_scene_path)
-		)
-		
-		_pause_dialog.custom_action.connect(func(action):
-			if action == "early_end":
-				_pause_dialog.hide()
-				var tree = get_tree()
-				if tree: tree.paused = false
-				_force_early_end_shift()
-		)
-
-		_pause_dialog.about_to_popup.connect(func():
-			var tree = get_tree()
-			if tree:
-				tree.paused = true
-		)
-		_pause_dialog.canceled.connect(func():
-			var tree = get_tree()
-			if tree:
-				tree.paused = false
-		)
-	else:
-		_pause_dialog.title = "Paused"
-		_pause_dialog.dialog_text = "Game paused. Resume to continue or exit to main menu."
-		
-	_pause_dialog.popup_centered()
+	var settings_scn = load("res://scenes/ui/settings_menu.tscn")
+	if settings_scn:
+		var menu = settings_scn.instantiate()
+		get_node("CanvasLayer").add_child(menu)
+		menu.process_mode = Node.PROCESS_MODE_ALWAYS
+		get_tree().paused = true
+		menu.closed.connect(func(): get_tree().paused = false)
 
 func _force_early_end_shift() -> void:
 	if _shift_timer:
@@ -2068,7 +2658,7 @@ func _force_early_end_shift() -> void:
 	if _total_score < shift_min_score:
 		_pending_day_restart = false
 		if _hint_label:
-			_hint_label.text = "Shift failed: minimum score not reached. Day %d will restart." % _current_day
+			pass
 		_show_shift_review(
 			"Shift Failed",
 			"You completed %d calls and scored %d points. Minimum required score is %d. Day %d will restart after you close this review." % [_calls_completed, _total_score, shift_min_score, _current_day],
@@ -2076,7 +2666,7 @@ func _force_early_end_shift() -> void:
 		)
 	else:
 		if _hint_label:
-			_hint_label.text = "Day complete! Requirements met. Tap Proceed to Day %d." % (_current_day + 1)
+			pass
 		_open_shift_review_for_manual_end(
 			"reload_scene",
 			"Shift Evaluation",
@@ -2110,6 +2700,17 @@ func _setup_scenario_generator() -> void:
 
 func _load_route_points_for_calls() -> void:
 	_route_points_px.clear()
+	_buildings_px.clear()
+
+	if building_json_res_path != "" and FileAccess.file_exists(building_json_res_path):
+		var bfile = FileAccess.open(building_json_res_path, FileAccess.READ)
+		if bfile != null:
+			var bparsed = JSON.parse_string(bfile.get_as_text())
+			if typeof(bparsed) == TYPE_DICTIONARY and bparsed.has("buildings"):
+				for b in bparsed.get("buildings"):
+					if typeof(b) == TYPE_DICTIONARY and b.has("x") and b.has("y"):
+						_buildings_px.append(Vector2(float(b.get("x")), float(b.get("y"))))
+
 	if not FileAccess.file_exists(route_json_res_path):
 		return
 	var file = FileAccess.open(route_json_res_path, FileAccess.READ)
@@ -2219,9 +2820,10 @@ func _on_shift_tick() -> void:
 		if _total_score >= shift_min_score:
 			if not _shift_ready_announced:
 				_shift_ready_announced = true
-				_show_kid_message("Shift Complete!", "Awesome work! You can now end your shift.")
+				if _hint_label:
+					pass
 		elif _hint_label:
-			_hint_label.text = "Shift timer ended. Keep taking calls until you reach %d points." % shift_min_score
+			pass
 
 func _setup_dispatch_ui() -> void:
 	var canvas = get_node_or_null("CanvasLayer")
@@ -2243,13 +2845,14 @@ func _setup_dispatch_ui() -> void:
 	_dispatch_panel = PanelContainer.new()
 	_dispatch_panel.name = "DispatchPanel"
 	# Use anchor-based sizing so it always fits the viewport
-	_dispatch_panel.anchor_left = 0.06
-	_dispatch_panel.anchor_right = 0.94
+	_dispatch_panel.anchor_left = 0.02
+	_dispatch_panel.anchor_right = 0.98
 	_dispatch_panel.anchor_top = 0.02
-	_dispatch_panel.anchor_bottom = 0.98
+	_dispatch_panel.anchor_bottom = 0.95
 	_dispatch_panel.offset_left = 0
 	_dispatch_panel.offset_right = 0
 	_dispatch_panel.offset_top = 0
+	_dispatch_panel.offset_bottom = 0
 	_dispatch_panel.offset_bottom = 0
 
 	var panel_style = StyleBoxFlat.new()
@@ -2277,36 +2880,8 @@ func _setup_dispatch_ui() -> void:
 
 	var outer_vbox = VBoxContainer.new()
 	outer_vbox.add_theme_constant_override("separation", 0)
+	outer_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(outer_vbox)
-
-	# ── Tab header row (INFO | DIALOG | ON SITE) ───────────────────
-	_tab_container = HBoxContainer.new()
-	_tab_container.add_theme_constant_override("separation", 0)
-	_tab_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	outer_vbox.add_child(_tab_container)
-
-	var tab_names := ["INFO", "DIALOG", "ON SITE"]
-	for i in range(tab_names.size()):
-		var tab_btn = Button.new()
-		tab_btn.text = tab_names[i]
-		tab_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tab_btn.custom_minimum_size = Vector2(0, 36)
-		tab_btn.flat = true
-		var tab_style_normal = StyleBoxFlat.new()
-		if i == 1:  # DIALOG tab is active by default
-			tab_style_normal.bg_color = Color(0.75, 0.15, 0.2, 1.0)
-		else:
-			tab_style_normal.bg_color = Color(0.12, 0.14, 0.22, 1.0)
-		tab_style_normal.corner_radius_top_left = 4 if i == 0 else 0
-		tab_style_normal.corner_radius_top_right = 4 if i == tab_names.size() - 1 else 0
-		tab_style_normal.border_width_bottom = 2
-		tab_style_normal.border_color = Color(0.75, 0.15, 0.2, 1.0)
-		tab_btn.add_theme_stylebox_override("normal", tab_style_normal)
-		tab_btn.add_theme_stylebox_override("hover", tab_style_normal)
-		tab_btn.add_theme_stylebox_override("pressed", tab_style_normal)
-		tab_btn.add_theme_color_override("font_color", Color(0.9, 0.92, 0.96, 1.0))
-		tab_btn.add_theme_font_size_override("font_size", 14)
-		_tab_container.add_child(tab_btn)
 
 	# ── Close (X) button overlaid on top-right ─────────────────────
 	_close_button = Button.new()
@@ -2324,34 +2899,16 @@ func _setup_dispatch_ui() -> void:
 	_close_button.add_theme_color_override("font_color", Color.WHITE)
 	_close_button.add_theme_font_size_override("font_size", 24)
 	_close_button.pressed.connect(_on_close_call_panel)
-	# Position the X on the top right corner of tab bar
-	var last_tab = _tab_container.get_child(_tab_container.get_child_count() - 1)
-	if last_tab:
-		last_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var header_margin = MarginContainer.new()
+	header_margin.add_theme_constant_override("margin_left", 16)
+	header_margin.add_theme_constant_override("margin_top", 12)
+	header_margin.add_theme_constant_override("margin_right", 16)
+	header_margin.add_theme_constant_override("margin_bottom", 0)
+	outer_vbox.add_child(header_margin)
+	outer_vbox.move_child(header_margin, 1)
 
-	# ── Content area (padded) ──────────────────────────────────────
-	var content_margin = MarginContainer.new()
-	content_margin.add_theme_constant_override("margin_left", 16)
-	content_margin.add_theme_constant_override("margin_top", 12)
-	content_margin.add_theme_constant_override("margin_right", 16)
-	content_margin.add_theme_constant_override("margin_bottom", 16)
-	content_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	outer_vbox.add_child(content_margin)
-
-	var scroll = ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	content_margin.add_child(scroll)
-
-	var content = VBoxContainer.new()
-	content.add_theme_constant_override("separation", 10)
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(content)
-
-	# ── Header: "INCOMING CALL:" ───────────────────────────────────
 	var header_row = HBoxContainer.new()
-	content.add_child(header_row)
+	header_margin.add_child(header_row)
 
 	_panel_header_label = Label.new()
 	_panel_header_label.text = "INCOMING CALL:"
@@ -2362,6 +2919,21 @@ func _setup_dispatch_ui() -> void:
 
 	_close_button.size_flags_horizontal = Control.SIZE_SHRINK_END
 	header_row.add_child(_close_button)
+
+	var content_margin = MarginContainer.new()
+	content_margin.add_theme_constant_override("margin_left", 16)
+	content_margin.add_theme_constant_override("margin_top", 4)
+	content_margin.add_theme_constant_override("margin_right", 16)
+	content_margin.add_theme_constant_override("margin_bottom", 16)
+	content_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer_vbox.add_child(content_margin)
+
+	var content = VBoxContainer.new()
+	content.name = "DialogContent"
+	content.add_theme_constant_override("separation", 10)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_margin.add_child(content)
 
 	# ── Location info ──────────────────────────────────────────────
 	_incident_summary_label = Label.new()
@@ -2378,61 +2950,88 @@ func _setup_dispatch_ui() -> void:
 	_incoming_label.custom_minimum_size = Vector2(0, 42)
 	content.add_child(_incoming_label)
 
-	# ── Transcript area (dark inner panel) ─────────────────────────
+	# ── Transcript area (messenger layout) ─────────────────────────
+	var transcript_hbox = HBoxContainer.new()
+	transcript_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	transcript_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	transcript_hbox.custom_minimum_size = Vector2(0, 240) # Guarantee ~3-message min height without overflowing
+	transcript_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_child(transcript_hbox)
+
+	var caller_vbox = VBoxContainer.new()
+	caller_vbox.alignment = BoxContainer.ALIGNMENT_END
+	caller_vbox.custom_minimum_size = Vector2(200, 0)
+	transcript_hbox.add_child(caller_vbox)
+
+	_caller_portrait = TextureRect.new()
+	_caller_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_caller_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_caller_portrait.custom_minimum_size = Vector2(240, 240)
+	caller_vbox.add_child(_caller_portrait)
+
 	var transcript_panel = PanelContainer.new()
+	transcript_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	transcript_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var transcript_style = StyleBoxFlat.new()
 	transcript_style.bg_color = Color(0.04, 0.05, 0.1, 1.0)
-	transcript_style.corner_radius_top_left = 4
-	transcript_style.corner_radius_top_right = 4
-	transcript_style.corner_radius_bottom_left = 4
-	transcript_style.corner_radius_bottom_right = 4
+	transcript_style.corner_radius_top_left = 6
+	transcript_style.corner_radius_top_right = 6
+	transcript_style.corner_radius_bottom_left = 6
+	transcript_style.corner_radius_bottom_right = 6
 	transcript_style.border_width_left = 1
 	transcript_style.border_width_top = 1
 	transcript_style.border_width_right = 1
 	transcript_style.border_width_bottom = 1
 	transcript_style.border_color = Color(0.2, 0.25, 0.35, 0.8)
 	transcript_panel.add_theme_stylebox_override("panel", transcript_style)
-	transcript_panel.custom_minimum_size = Vector2(0, 170)
-	content.add_child(transcript_panel)
+	transcript_hbox.add_child(transcript_panel)
 
 	var transcript_margin = MarginContainer.new()
-	transcript_margin.add_theme_constant_override("margin_left", 10)
+	transcript_margin.add_theme_constant_override("margin_left", 8)
 	transcript_margin.add_theme_constant_override("margin_top", 8)
-	transcript_margin.add_theme_constant_override("margin_right", 10)
+	transcript_margin.add_theme_constant_override("margin_right", 8)
 	transcript_margin.add_theme_constant_override("margin_bottom", 8)
-	transcript_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	transcript_panel.add_child(transcript_margin)
 
-	_transcript_label = RichTextLabel.new()
-	_transcript_label.bbcode_enabled = true
-	_transcript_label.scroll_following = true
-	_transcript_label.fit_content = false
-	_transcript_label.add_theme_color_override("default_color", Color(0.78, 0.84, 0.95, 1.0))
-	_transcript_label.add_theme_font_size_override("normal_font_size", 14)
-	transcript_margin.add_child(_transcript_label)
+	var transcript_inner_vbox = VBoxContainer.new()
+	transcript_inner_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	transcript_inner_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	transcript_inner_vbox.add_theme_constant_override("separation", 10)
+	transcript_margin.add_child(transcript_inner_vbox)
 
-	# ── Answer button ──────────────────────────────────────────────
-	_answer_button = Button.new()
-	_answer_button.text = "Answer Call"
-	_answer_button.disabled = true
-	_answer_button.custom_minimum_size = Vector2(0, 48)
-	var answer_style = StyleBoxFlat.new()
-	answer_style.bg_color = Color(0.08, 0.42, 0.18, 1.0)
-	answer_style.corner_radius_top_left = 4
-	answer_style.corner_radius_top_right = 4
-	answer_style.corner_radius_bottom_left = 4
-	answer_style.corner_radius_bottom_right = 4
-	_answer_button.add_theme_stylebox_override("normal", answer_style)
-	var answer_hover = answer_style.duplicate()
-	answer_hover.bg_color = Color(0.1, 0.52, 0.22, 1.0)
-	_answer_button.add_theme_stylebox_override("hover", answer_hover)
-	var answer_disabled = answer_style.duplicate()
-	answer_disabled.bg_color = Color(0.15, 0.18, 0.25, 0.6)
-	_answer_button.add_theme_stylebox_override("disabled", answer_disabled)
-	_answer_button.add_theme_color_override("font_color", Color.WHITE)
-	_answer_button.add_theme_font_size_override("font_size", 15)
-	_answer_button.pressed.connect(_on_answer_call_pressed)
-	content.add_child(_answer_button)
+	var chat_scroll = ScrollContainer.new()
+	chat_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	chat_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chat_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	transcript_inner_vbox.add_child(chat_scroll)
+
+	_chat_box = VBoxContainer.new()
+	_chat_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_chat_box.add_theme_constant_override("separation", 6)
+	chat_scroll.add_child(_chat_box)
+	
+	var op_vbox = VBoxContainer.new()
+	op_vbox.alignment = BoxContainer.ALIGNMENT_END
+	op_vbox.custom_minimum_size = Vector2(200, 0)
+	transcript_hbox.add_child(op_vbox)
+
+	_operator_portrait = TextureRect.new()
+	_operator_portrait.expand_mode = TextureRect.EXPAND_KEEP_SIZE
+	_operator_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var op_tex = _load_icon("res://assets/Portraits/3 Emotion Berong. Serious, Calm, Confident.png")
+	if op_tex:
+		var op_atlas = AtlasTexture.new()
+		op_atlas.atlas = op_tex
+		var fw = op_tex.get_width() / 3
+		var fh = op_tex.get_height()
+		var base_region = Rect2(2 * fw, 0, fw, fh) # Confident
+		op_atlas.region = _trim_region(op_tex, base_region)
+		_operator_portrait.texture = op_atlas
+		_operator_portrait.flip_h = true
+		_operator_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_operator_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_operator_portrait.custom_minimum_size = Vector2(198, 198) # 10% taller than 180 baseline
+	op_vbox.add_child(_operator_portrait)
 
 	# ── Response prompt label ──────────────────────────────────────
 	_response_prompt_label = Label.new()
@@ -2441,8 +3040,9 @@ func _setup_dispatch_ui() -> void:
 	_response_prompt_label.add_theme_font_size_override("font_size", 14)
 	content.add_child(_response_prompt_label)
 
-	# ── Multiple choice box ────────────────────────────────────────
+	# ── Multiple choice box (Outside Transcript) ───
 	_choices_box = VBoxContainer.new()
+	_choices_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_choices_box.add_theme_constant_override("separation", 6)
 	content.add_child(_choices_box)
 
@@ -2520,6 +3120,7 @@ func _setup_dispatch_ui() -> void:
 	_typed_submit_button = Button.new()
 	_typed_submit_button.text = "Submit"
 	_typed_submit_button.custom_minimum_size = Vector2(96, 44)
+	_typed_submit_button.add_theme_font_size_override("font_size", int(round(20 * _ui_scale_factor())))
 	var submit_btn_style = StyleBoxFlat.new()
 	submit_btn_style.bg_color = Color(0.18, 0.45, 0.7, 1.0)
 	submit_btn_style.corner_radius_top_left = 4
@@ -2551,12 +3152,13 @@ func _setup_dispatch_ui() -> void:
 	_vehicle_grid.add_theme_constant_override("h_separation", 6)
 	_vehicle_grid.add_theme_constant_override("v_separation", 6)
 	_vehicle_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_vehicle_grid.custom_minimum_size = Vector2(0, 180) # Ensure it does not get squashed to 0 height
 	_vehicle_grid.visible = false
 	content.add_child(_vehicle_grid)
 
-	_add_vehicle_button(_vehicle_grid, "fire_truck", "Dispatch Fire Truck", "res://assets/ui/icons/fire_truck.svg")
-	_add_vehicle_button(_vehicle_grid, "ambulance", "Dispatch Ambulance", "res://assets/ui/icons/ambulance.svg")
-	_add_vehicle_button(_vehicle_grid, "police", "Dispatch Police", "res://assets/ui/icons/police.svg")
+	_add_vehicle_button(_vehicle_grid, "fire_truck", "Dispatch BFP", "res://assets/The Right Call Sprites/firetrucksprite.png")
+	_add_vehicle_button(_vehicle_grid, "ambulance", "Dispatch MDRRMO", "res://assets/The Right Call Sprites/ambulancesprite.png")
+	_add_vehicle_button(_vehicle_grid, "police", "Dispatch PNP", "res://assets/The Right Call Sprites/policeeesprite.png")
 	_set_vehicle_buttons_enabled(false)
 
 	# ── Timeline label ─────────────────────────────────────────────
@@ -2571,6 +3173,7 @@ func _setup_dispatch_ui() -> void:
 	_end_call_button.text = "End Call"
 	_end_call_button.disabled = true
 	_end_call_button.custom_minimum_size = Vector2(0, 46)
+	_end_call_button.add_theme_font_size_override("font_size", int(round(22 * _ui_scale_factor())))
 	var end_style = StyleBoxFlat.new()
 	end_style.bg_color = Color(0.6, 0.12, 0.16, 1.0)
 	end_style.corner_radius_top_left = 4
@@ -2602,14 +3205,14 @@ func _setup_dispatch_ui() -> void:
 	var call_bg_pts = PackedVector2Array()
 	for i in range(24):
 		var angle = (float(i) / 24.0) * TAU
-		call_bg_pts.append(Vector2(cos(angle) * 16.0, sin(angle) * 16.0))
+		call_bg_pts.append(Vector2(cos(angle) * 32.0, sin(angle) * 32.0))
 	call_bg.polygon = call_bg_pts
 	call_bg.color = Color(0.9, 0.2, 0.24, 0.95)
 	_offscreen_indicator.add_child(call_bg)
 
 	var call_stem = Polygon2D.new()
 	call_stem.polygon = PackedVector2Array([
-		Vector2(-2.5, -10.0), Vector2(2.5, -10.0), Vector2(1.8, 2.0), Vector2(-1.8, 2.0)
+		Vector2(-5.0, -20.0), Vector2(5.0, -20.0), Vector2(3.6, 4.0), Vector2(-3.6, 4.0)
 	])
 	call_stem.color = Color.WHITE
 	_offscreen_indicator.add_child(call_stem)
@@ -2641,6 +3244,7 @@ func _setup_dispatch_ui() -> void:
 	_set_dispatch_panel_waiting_state("Stand by for incoming calls.")
 
 func _on_minimized_call_pressed() -> void:
+	_scroll_dialog_to_top()
 	if _active_call.is_empty():
 		if _minimized_call_button:
 			_minimized_call_button.visible = false
@@ -2653,9 +3257,8 @@ func _on_minimized_call_pressed() -> void:
 		_dim_overlay.visible = true
 	_call_active = true
 	if _hint_label:
-		_hint_label.text = "Call reopened. Continue transcript, then dispatch unit."
-	if _is_interactive_tutorial and _answer_button and not _answer_button.disabled:
-		_point_coach_at(_answer_button, "Tap Answer")
+		pass
+
 
 func _on_offscreen_indicator_clicked(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -2732,10 +3335,32 @@ func _add_vehicle_button(parent: Node, vehicle_id: String, label_text: String, i
 	var btn = Button.new()
 	btn.text = label_text
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn.custom_minimum_size = Vector2(0, 88)
+	btn.custom_minimum_size = Vector2(0, 176)
 	btn.expand_icon = true
-	btn.add_theme_font_size_override("font_size", 17)
-	btn.icon = _load_icon(icon_path)
+	btn.add_theme_font_size_override("font_size", 34)
+	
+	var icon_tex = _load_icon(icon_path)
+	if icon_tex:
+		var atlas = AtlasTexture.new()
+		atlas.atlas = icon_tex
+		var frames_count = 4 # These spritesheets all have 4 frames
+		var frame_w = icon_tex.get_width() / frames_count
+		var frame_h = icon_tex.get_height()
+		atlas.region = Rect2(0, 0, frame_w, frame_h)
+		btn.icon = atlas
+		
+		# Animate the sprite frames
+		var timer = Timer.new()
+		timer.wait_time = 0.15
+		timer.autostart = true
+		btn.add_child(timer)
+		var frame_idx = [0]
+		timer.timeout.connect(func():
+			if not is_instance_valid(atlas): return
+			frame_idx[0] = (frame_idx[0] + 1) % frames_count
+			atlas.region = Rect2(frame_idx[0] * frame_w, 0, frame_w, frame_h)
+		)
+		
 	btn.tooltip_text = "Tap to dispatch this unit"
 	btn.pressed.connect(Callable(self, "_on_vehicle_button_pressed").bind(vehicle_id))
 	parent.add_child(btn)
@@ -2767,9 +3392,9 @@ func _build_manual_text() -> String:
 		"- End call only after services arrive.",
 		"",
 		"[b]Quick Unit Matching[/b]",
-		"- Fire Truck: active fire, smoke, burning structures.",
-		"- Ambulance: transport patients safely to hospital for medical emergencies, injuries, breathing problems, AND technical operations like extrication of trapped victims or building collapse.",
-		"- Police: violence, threats, criminal activity."
+		"- BFP: active fire, smoke, burning structures.",
+		"- MDRRMO: transport patients safely to hospital for medical emergencies, injuries, breathing problems, AND technical operations like extrication of trapped victims or building collapse.",
+		"- PNP: violence, threats, criminal activity."
 	]
 	return "\n".join(lines)
 
@@ -2799,25 +3424,6 @@ func _set_dispatch_panel_waiting_state(message: String) -> void:
 		_incoming_label.text = message
 	if _dispatch_panel:
 		_dispatch_panel.visible = false
-	if _answer_button:
-		_answer_button.disabled = true
-		_answer_button.text = "Answer Call"
-	if _response_prompt_label:
-		_response_prompt_label.text = ""
-	if _response_feedback_label:
-		_response_feedback_label.text = ""
-	if _assignment_label:
-		_assignment_label.text = ""
-	if _timeline_label:
-		_timeline_label.text = ""
-	if _end_call_button:
-		_end_call_button.text = "End Call"
-		_end_call_button.disabled = true
-	_dispatch_phase_unlocked = false
-	if _vehicle_grid:
-		_vehicle_grid.visible = false
-	_set_vehicle_buttons_enabled(false)
-	_hide_coach_pointer()
 
 func _on_next_call_timeout() -> void:
 	if not _pending_call.is_empty():
@@ -2828,7 +3434,7 @@ func _on_next_call_timeout() -> void:
 		return
 	if _remaining_shift_call_slots() <= 0:
 		if _hint_label:
-			_hint_label.text = "Daily call limit reached for this shift."
+			pass
 		return
 	if _route_points_px.is_empty():
 		_set_dispatch_panel_waiting_state("Route data unavailable. Check route JSON.")
@@ -2848,47 +3454,39 @@ func _on_next_call_timeout() -> void:
 			if _response_feedback_label:
 				_response_feedback_label.text = "New emergency reported. Waiting queue: %d" % _queued_calls.size()
 			if _hint_label:
-				_hint_label.text = "Another emergency has been reported and queued while units are still resolving the previous call."
+				pass
 			_update_end_call_button_state()
 			if _has_dispatched_vehicle:
 				_schedule_background_emergency_if_needed()
 		return
 
 	_pending_call = generated
+	await get_tree().create_timer(randf_range(1.0, 5.0)).timeout
 	_spawn_call_marker()
 
 func _generate_call_scenario() -> Dictionary:
 	if _is_interactive_tutorial and _calls_completed == 0:
-		return {
-			"type": "fire",
-			"severity": "medium",
-			"title": "Tutorial Fire",
-			"location": "123 Training Av. (Tutorial)",
-			"recommended_vehicle": "fire_truck",
-			"transcript": [
-				{"speaker": "Caller", "text": "Help! There is a small fire in my kitchen!"},
-				{"speaker": "911", "text": "Are you safe? Can you evacuate?"},
-				{"speaker": "Caller", "text": "I am safe outside, but the fire is spreading."},
-				{"speaker": "911", "text": "Stay on the line. I need to give you instructions."},
-				{"speaker": "Caller", "text": "Okay, please tell me what we should do!"}
-			],
-			"options": [
-				{
-					"text": "Go to the kitchen and try to put it out with water.",
-					"label": "unsafe",
-					"explanation": "Never use water on an unknown kitchen fire (it might be a grease fire!).",
-					"feedback": "Dangerous advice!"
-				},
-				{
-					"text": "Stay outside, do not re-enter, and wait for the fire truck.",
-					"label": "safe",
-					"explanation": "The safest action is to evacuate and wait for professionals.",
-					"feedback": "Correct! Prioritize life safety above all."
-				}
-			]
-		}
+		if _scenario_generator and _scenario_generator.has_method("get_scenario_by_id"):
+			var tut_scenario = _scenario_generator.call("get_scenario_by_id", "fire_grease_054", _selected_locale)
+			if typeof(tut_scenario) == TYPE_DICTIONARY and not tut_scenario.is_empty():
+				tut_scenario["options"] = [
+					{
+						"text": "Slide a metal lid or cookie sheet over the pan/grill.",
+						"label": "safe",
+						"explanation": "Smothering the fire cuts off the oxygen supply."
+					},
+					{
+						"text": "Pour water on the grease fire.",
+						"label": "unsafe",
+						"explanation": "Water sinks in oil and boils instantly, causing a massive fireball."
+					}
+				]
+				return tut_scenario
 
 	if _scenario_generator and _scenario_generator.has_method("generate_scenario"):
+		var state = get_node_or_null("/root/GameState")
+		if state and state.has_method("get_locale"):
+			_selected_locale = String(state.call("get_locale"))
 		var generated = _scenario_generator.call("generate_scenario", _selected_mode_id, _selected_locale, _current_day)
 		if typeof(generated) == TYPE_DICTIONARY:
 			return generated
@@ -2926,7 +3524,7 @@ func _spawn_call_marker() -> void:
 	area.input_pickable = true
 	var shape = CollisionShape2D.new()
 	var circle_shape = CircleShape2D.new()
-	circle_shape.radius = 28.0
+	circle_shape.radius = 56.0
 	shape.shape = circle_shape
 	area.add_child(shape)
 	area.input_event.connect(Callable(self, "_on_call_marker_input_event").bind(marker))
@@ -2937,7 +3535,7 @@ func _spawn_call_marker() -> void:
 	var circle_pts = PackedVector2Array()
 	for i in range(32):
 		var angle = (float(i) / 32.0) * TAU
-		circle_pts.append(Vector2(cos(angle) * 22.0, sin(angle) * 22.0))
+		circle_pts.append(Vector2(cos(angle) * 44.0, sin(angle) * 44.0))
 	bg_circle.polygon = circle_pts
 	bg_circle.color = Color(0.85, 0.15, 0.2, 1.0)
 	marker.add_child(bg_circle)
@@ -2945,7 +3543,7 @@ func _spawn_call_marker() -> void:
 	# White "!" exclamation mark — stem (tall rectangle)
 	var stem = Polygon2D.new()
 	stem.polygon = PackedVector2Array([
-		Vector2(-3, -14), Vector2(3, -14), Vector2(2, 3), Vector2(-2, 3)
+		Vector2(-6, -28), Vector2(6, -28), Vector2(4, 6), Vector2(-4, 6)
 	])
 	stem.color = Color.WHITE
 	marker.add_child(stem)
@@ -2955,23 +3553,33 @@ func _spawn_call_marker() -> void:
 	var dot_pts = PackedVector2Array()
 	for i in range(12):
 		var angle = (float(i) / 12.0) * TAU
-		dot_pts.append(Vector2(cos(angle) * 3.0, sin(angle) * 3.0 + 9.0))
+		dot_pts.append(Vector2(cos(angle) * 6.0, sin(angle) * 6.0 + 18.0))
 	dot.polygon = dot_pts
 	dot.color = Color.WHITE
 	marker.add_child(dot)
 
 	_world_node.add_child(marker)
 	_active_call_marker = marker
+	
+	var vp = get_viewport_rect().size
+	var is_portrait = vp.y > vp.x
+	var base_scale = 7.0 if is_portrait else 4.5
+	marker.scale = Vector2(base_scale, base_scale)
 
 	var tw = marker.create_tween()
 	tw.set_loops()
-	tw.tween_property(marker, "scale", Vector2(1.2, 1.2), 0.45)
-	tw.tween_property(marker, "scale", Vector2.ONE, 0.45)
+	tw.tween_property(marker, "scale", Vector2(base_scale * 1.15, base_scale * 1.15), 0.45)
+	tw.tween_property(marker, "scale", Vector2(base_scale, base_scale), 0.45)
 
 	if _hint_label:
-		_hint_label.text = "Incoming emergency call! Click the alert icon to answer."
+		pass
 	if _is_interactive_tutorial and _tutorial_label:
 		_tutorial_label.text = "Click the red '!' alert icon on the map to open the call."
+		
+	# Start phone ring sound
+	var am = get_node_or_null("/root/AudioManager")
+	if am and am.has_method("play_ring"):
+		am.play_ring()
 
 func _on_call_marker_input_event(_viewport: Node, event: InputEvent, _shape_idx: int, marker: Node2D) -> void:
 	if event is InputEventMouseButton:
@@ -3010,7 +3618,7 @@ func _process(_delta: float) -> void:
 				_offscreen_indicator_arrow.rotation = ind_pos.angle_to_point(marker_screen_pos)
 			
 			# Pulse animation for the call indicator
-			_offscreen_indicator.scale = Vector2.ONE * (1.0 + sin(Time.get_ticks_msec() / 220.0) * 0.12)
+			_offscreen_indicator.scale = Vector2.ONE * (2.0 + sin(Time.get_ticks_msec() / 220.0) * 0.24)
 		else:
 			_offscreen_indicator.visible = false
 	elif _offscreen_indicator != null:
@@ -3022,6 +3630,12 @@ func _update_dispatched_vehicle_follow(delta: float) -> void:
 	if _world_node == null or _map_sprite == null:
 		return
 	var viewport_center = get_viewport().get_visible_rect().size * 0.5
+	
+	var target_zoom = clamp(_min_scale * 2.5, _min_scale, _max_scale)
+	_current_scale = lerp(_current_scale, target_zoom, delta * 2.0)
+	_world_node.scale = Vector2(_current_scale, _current_scale)
+	_map_sprite.scale = Vector2(_current_scale, _current_scale)
+	
 	var target_offset = _clamped_map_offset(viewport_center - _follow_vehicle_world_pos * _current_scale)
 	var blend = clamp(delta * max(1.0, responder_follow_smoothing), 0.0, 1.0)
 	_world_node.position = _world_node.position.lerp(target_offset, blend)
@@ -3043,6 +3657,10 @@ func _open_call_from_marker(marker: Node2D) -> void:
 		_active_call_marker.queue_free()
 	_active_call_marker = null
 
+	var am = get_node_or_null("/root/AudioManager")
+	if am and am.has_method("stop_ring"):
+		am.stop_ring()
+
 	_active_call = _pending_call.duplicate(true)
 	_pending_call.clear()
 	_call_sequence += 1
@@ -3056,6 +3674,7 @@ func _open_call_from_marker(marker: Node2D) -> void:
 	_dispatch_phase_unlocked = false
 	_has_dispatched_vehicle = false
 	_is_waiting_for_llm = false
+	_awaiting_dispatcher_prompt = false
 	_call_active = true
 	if _minimized_call_button:
 		_minimized_call_button.visible = false
@@ -3065,17 +3684,45 @@ func _open_call_from_marker(marker: Node2D) -> void:
 	if _dispatch_panel:
 		_dispatch_panel.visible = true
 	if _panel_header_label:
-		_panel_header_label.text = "CALL #%d | %s" % [_call_sequence, String(_active_call.get("type", "Emergency")).to_upper()]
+		_panel_header_label.text = "CALL #%d" % _call_sequence
 	_set_intake_state(false, false)
 	_intake_stage = 0
 
 	if _hint_label:
-		_hint_label.text = "Call active. Ask location and complaint, then guide and dispatch."
+		pass
 	if _is_interactive_tutorial and _tutorial_label:
 		_tutorial_label.text = "Click 'Answer Call' to connect to the citizen."
 
-	if _transcript_label:
-		_transcript_label.clear()
+	if _chat_box:
+		for child in _chat_box.get_children():
+			child.queue_free()
+	
+	_current_call_mistakes = 0
+	if _operator_portrait and _operator_portrait.texture is AtlasTexture:
+		var fw = _operator_portrait.texture.atlas.get_width() / 3
+		var fh = _operator_portrait.texture.atlas.get_height()
+		_operator_portrait.texture.region = Rect2(2 * fw, 0, fw, fh) # Confident
+
+	if _caller_portrait and _caller_images.size() > 0:
+		var chosen_img_path = _caller_images[randi() % _caller_images.size()]
+		var caller_tex = _load_icon(chosen_img_path)
+		if caller_tex:
+			var img = caller_tex.get_image()
+			if img:
+				var used = img.get_used_rect()
+				var atlas = AtlasTexture.new()
+				atlas.atlas = caller_tex
+				atlas.region = used
+				_caller_portrait.texture = atlas
+			else:
+				_caller_portrait.texture = caller_tex
+			
+			if "Kid" in chosen_img_path:
+				_caller_portrait.custom_minimum_size = Vector2(144, 144) # 20% smaller than 180
+			elif "Teen" in chosen_img_path:
+				_caller_portrait.custom_minimum_size = Vector2(162, 162) # 10% smaller than 180
+			else:
+				_caller_portrait.custom_minimum_size = Vector2(180, 180) # Baseline
 	_append_transcript_line("System", "Call connected. Recording live transcript...")
 
 	_clear_choice_buttons()
@@ -3095,21 +3742,22 @@ func _open_call_from_marker(marker: Node2D) -> void:
 	if _vehicle_grid:
 		_vehicle_grid.visible = false
 
-	if _answer_button:
-		_answer_button.disabled = false
-		_answer_button.text = "Answer Call"
-		if _is_interactive_tutorial:
-			_point_coach_at(_answer_button, "Tap Answer")
+	_on_answer_call_pressed()
 	if _end_call_button:
-		_end_call_button.text = "End Call"
-		_end_call_button.disabled = true
+		if _selected_mode_id == "easy_multiple_choice":
+			_end_call_button.visible = false
+		else:
+			_end_call_button.text = "End Call"
+			_end_call_button.disabled = true
 
 func _on_answer_call_pressed() -> void:
+	var am = get_node_or_null("/root/AudioManager")
+	if am:
+		am.play_click()
+		if am.has_method("stop_ring"):
+			am.stop_ring()
 	if _active_call.is_empty():
 		return
-	if _answer_button:
-		_answer_button.disabled = true
-		_answer_button.text = "Call In Progress"
 
 	# Add the complete transcript for the interactive steps
 	_caller_lines.clear()
@@ -3119,6 +3767,7 @@ func _on_answer_call_pressed() -> void:
 	_intake_stage = 0
 	_professional_scored_tags.clear()
 	_call_score = 0
+	_wrong_advice_count = 0
 	_call_start_time = Time.get_ticks_msec() / 1000.0
 	_current_call_review = {
 		"call_number": _call_sequence,
@@ -3153,6 +3802,17 @@ func _play_next_caller_line() -> void:
 	if _caller_line_index < _caller_lines.size():
 		var line: Dictionary = _caller_lines[_caller_line_index]
 		var speaker = String(line.get("speaker", "Caller"))
+		
+		# Options-based 911 turn = mid-call multiple choice
+		if line.has("options") and (speaker.to_lower() == "911" or speaker.to_lower() == "dispatcher"):
+			_caller_line_index += 1
+			if _caller_line_index >= _caller_lines.size():
+				_show_player_choices()
+			else:
+				_active_mid_transcript_options = line.get("options", [])
+				_show_mid_transcript_choices()
+			return
+			
 		var text = String(line.get("text", ""))
 		
 		if speaker == "911":
@@ -3164,6 +3824,100 @@ func _play_next_caller_line() -> void:
 				_transcript_timer.start()
 	else:
 		_show_player_choices()
+
+func _show_mid_transcript_choices() -> void:
+	_scroll_dialog_to_bottom()
+	_clear_choice_buttons()
+	if _typed_row:
+		_typed_row.visible = false
+	
+	if _response_prompt_label:
+		_response_prompt_label.text = "Select your next response to the caller:"
+	
+	if _choices_box and _active_mid_transcript_options.size() > 0:
+		var safe_opts: Array = []
+		var unsafe_opts: Array = []
+		
+		for i in range(_active_mid_transcript_options.size()):
+			if String(_active_mid_transcript_options[i].get("label", "unsafe")).to_lower() == "safe":
+				safe_opts.append(i)
+			else:
+				unsafe_opts.append(i)
+				
+		var diff = "easy"
+		var game_state = get_node_or_null("/root/GameState")
+		if game_state and game_state.has_method("get_profressional_difficulty"):
+			diff = String(game_state.call("get_profressional_difficulty"))
+			
+		var num_unsafe = 1
+		if diff == "medium": num_unsafe = 2
+		elif diff == "hard": num_unsafe = 3
+		
+		unsafe_opts.shuffle()
+		var final_opts: Array = []
+		
+		if safe_opts.size() > 0:
+			safe_opts.shuffle()
+			final_opts.append(safe_opts[0])
+		
+		for i in range(min(num_unsafe, unsafe_opts.size())):
+			final_opts.append(unsafe_opts[i])
+			
+		final_opts.shuffle()
+		
+		var seen_texts: Array = []
+		var btns_to_layout: Array = []
+		for idx in final_opts:
+			var raw_text = String(_active_mid_transcript_options[idx].get("text", ""))
+			var display_text = _clean_option_text_for_normal_mode(raw_text)
+			if display_text == "" or seen_texts.has(display_text):
+				continue
+			seen_texts.append(display_text)
+			var btn = Button.new()
+			btn.text = display_text
+			btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_style_choice_button(btn, _ui_scale_factor())
+			btn.pressed.connect(Callable(self, "_on_mid_transcript_choice_pressed").bind(idx))
+			btns_to_layout.append(btn)
+		_layout_choice_buttons(btns_to_layout)
+
+func _on_mid_transcript_choice_pressed(idx: int) -> void:
+	if idx < 0 or idx >= _active_mid_transcript_options.size():
+		return
+	var opt: Dictionary = _active_mid_transcript_options[idx]
+	var is_safe = String(opt.get("label", "")).to_lower() == "safe"
+	var raw_text = String(opt.get("text", ""))
+	
+	if not is_safe:
+		# Wrong choice mid-call
+		if _feedback_dialog:
+			_feedback_popup_context = ""
+			_apply_dialog_color_and_juice(false, true)
+			var explanation = String(opt.get("explanation", opt.get("feedback", "This response is unsafe or inappropriate.")))
+			_feedback_dialog.dialog_text = "Unsafe dialogue choice.\n\nYour Action: %s\n\nWhy:\n%s" % [raw_text, explanation]
+			_feedback_dialog.popup_centered(Vector2i(600, 200))
+			_apply_dialog_juice(false, true)
+		return
+	
+	# Correct choice mid-call
+	_clear_choice_buttons()
+	var display_text = _clean_option_text_for_normal_mode(raw_text)
+	_append_transcript_line("Dispatcher", display_text)
+	
+	if _feedback_dialog:
+		_feedback_popup_context = ""
+		_apply_dialog_color_and_juice(true, false)
+		var explanation = String(opt.get("explanation", "This is the safest immediate action."))
+		_feedback_dialog.dialog_text = "Correct Choice.\n\nYour Action: %s\n\nWhy:\n%s" % [raw_text, explanation]
+		_feedback_dialog.popup_centered(Vector2i(600, 200))
+		_apply_dialog_juice(true, false)
+		await _feedback_dialog.confirmed
+	
+	# Continue the caller transcript
+	if _transcript_timer:
+		_transcript_timer.start()
+	else:
+		_play_next_caller_line()
 
 func _show_dispatcher_prompt(text: String) -> void:
 	_clear_choice_buttons()
@@ -3185,19 +3939,54 @@ func _show_dispatcher_prompt(text: String) -> void:
 		_response_prompt_label.text = "Ask the caller:"
 	
 	if _choices_box:
+		var diff = "easy"
+		var game_state = get_node_or_null("/root/GameState")
+		if game_state and game_state.has_method("get_profressional_difficulty"):
+			diff = String(game_state.call("get_profressional_difficulty"))
+		var num_distractors = 1
+		if diff == "medium":
+			num_distractors = 2
+		elif diff == "hard":
+			num_distractors = 3
+			
+		var bad_texts = _get_scenario_bad_texts([
+			"There's nothing we can do right now.",
+			"Try to confront them yourself.",
+			"Please hold, we are very busy.",
+			"Just wait there until the problem goes away.",
+			"Are you sure you need emergency services?",
+			"Hang up and try calling the non-emergency line."
+		])
+
 		var btn = Button.new()
 		btn.text = text
 		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_style_choice_button(btn, _ui_scale_factor())
 		btn.pressed.connect(Callable(self, "_on_dispatcher_prompt_pressed").bind(text))
-		_choices_box.add_child(btn)
-		_animate_choice_button_attention(btn)
+		
+		var btns = [btn]
+		for i in range(num_distractors):
+			var bad_btn = Button.new()
+			bad_btn.text = bad_texts[i]
+			bad_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_style_choice_button(bad_btn, _ui_scale_factor())
+			bad_btn.pressed.connect(Callable(self, "_on_wrong_intake_pressed"))
+			btns.append(bad_btn)
+			
+		btns.shuffle()
+		_layout_choice_buttons(btns)
+		if _is_interactive_tutorial:
+			_point_coach_at(btn, "Ask caller")
 
 func _on_dispatcher_prompt_pressed(text: String) -> void:
 	_clear_choice_buttons()
 	_append_transcript_line("Dispatcher", text)
 	if _response_prompt_label:
 		_response_prompt_label.text = "Caller is responding..."
+	if _is_interactive_tutorial:
+		if _chat_box and _chat_box.get_parent():
+			_scroll_dialog_to_top()
+			_point_coach_at(_chat_box.get_parent(), "Read reply")
 	_caller_line_index += 1
 	if _transcript_timer:
 		_transcript_timer.start()
@@ -3209,39 +3998,109 @@ func _on_transcript_tick() -> void:
 		_transcript_timer.stop()
 	_play_next_caller_line()
 
+func _scroll_dialog_to_bottom() -> void:
+	if _dispatch_panel:
+		var scroll: ScrollContainer = _dispatch_panel.find_child("DialogScroll", true, false)
+		if scroll:
+			var vbar = scroll.get_v_scroll_bar()
+			if vbar:
+				get_tree().create_timer(0.05).timeout.connect(func(): scroll.scroll_vertical = int(vbar.max_value))
+
+func _scroll_dialog_to_top() -> void:
+	if _dispatch_panel:
+		var scroll: ScrollContainer = _dispatch_panel.find_child("DialogScroll", true, false)
+		if scroll:
+			get_tree().create_timer(0.05).timeout.connect(func(): scroll.scroll_vertical = 0)
+
 func _show_player_choices() -> void:
+	_scroll_dialog_to_bottom()
 	_clear_choice_buttons()
 	if _typed_row:
 		_typed_row.visible = false
 
 	if _selected_mode_id == "easy_multiple_choice":
-		var options: Array = _active_call.get("options", [])
 		if _response_prompt_label:
-			_response_prompt_label.text = "Choose one response option below:"
-		for i in range(options.size()):
-			var option: Dictionary = options[i]
-			var btn = Button.new()
-			btn.text = String(option.get("text", "Option"))
-			btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			_style_choice_button(btn, _ui_scale_factor())
-			btn.pressed.connect(Callable(self, "_on_choice_option_pressed").bind(i))
-			if _choices_box:
-				_choices_box.add_child(btn)
-			_animate_choice_button_attention(btn, i)
-		if _hint_button:
-			_hint_button.visible = true
-		if _is_interactive_tutorial:
-			_point_coach_at(_choices_box, "Pick safest")
+			_response_prompt_label.text = "Select the best response:"
+		if _choices_box:
+			var options: Array = _get_scenario_options()
+			var safe_opts: Array = []
+			var unsafe_opts: Array = []
+			
+			for i in range(options.size()):
+				if String(options[i].get("label", "unsafe")).to_lower() == "safe":
+					safe_opts.append(i)
+				else:
+					unsafe_opts.append(i)
+					
+			var diff = "easy"
+			var game_state = get_node_or_null("/root/GameState")
+			if game_state and game_state.has_method("get_profressional_difficulty"):
+				diff = String(game_state.call("get_profressional_difficulty"))
+				
+			var num_unsafe = 1
+			if diff == "medium": num_unsafe = 2
+			elif diff == "hard": num_unsafe = 3
+			
+			unsafe_opts.shuffle()
+			var final_opts: Array = []
+			
+			if safe_opts.size() > 0:
+				safe_opts.shuffle()
+				final_opts.append(safe_opts[0])
+			
+			for i in range(min(num_unsafe, unsafe_opts.size())):
+				final_opts.append(unsafe_opts[i])
+				
+			final_opts.shuffle()
+			
+			var seen_texts: Array = []
+			var safe_btn: Button = null
+			var btns_to_layout: Array = []
+			for idx in final_opts:
+				var raw_text = String(options[idx].get("text", ""))
+				var display_text = _clean_option_text_for_normal_mode(raw_text)
+				# Skip options with no meaningful content after stripping the
+				# send-help prefix, or those that are duplicates of another option.
+				if display_text == "" or seen_texts.has(display_text):
+					continue
+				seen_texts.append(display_text)
+				var btn = Button.new()
+				btn.text = display_text
+				btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				_style_choice_button(btn, _ui_scale_factor())
+				btn.pressed.connect(Callable(self, "_on_choice_option_pressed").bind(idx))
+				btns_to_layout.append(btn)
+				
+				if _is_interactive_tutorial and safe_opts.has(idx):
+					safe_btn = btn
+					
+			_layout_choice_buttons(btns_to_layout)
+			_scroll_dialog_to_bottom()
+			await get_tree().process_frame
+			await get_tree().process_frame
+			await get_tree().create_timer(0.06).timeout
+			
+			if _is_interactive_tutorial and _tutorial_label:
+				_tutorial_label.text = "Click the safest response. Never instruct them to use water on this fire!"
+				if is_instance_valid(_choices_box):
+					_show_tutorial_focus(_choices_box)
+				if is_instance_valid(safe_btn):
+					_point_coach_at(safe_btn, "Click safest response")
 	else:
 		if _response_prompt_label:
 			_response_prompt_label.text = "Type your response to the caller:"
 		if _typed_row:
 			_typed_row.visible = true
+			
+		_scroll_dialog_to_bottom()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await get_tree().create_timer(0.06).timeout
+		
+		if _is_interactive_tutorial and _tutorial_label:
+			_tutorial_label.text = "Type the safest response. Never instruct them to use water on this fire!"
 		if _is_interactive_tutorial and _typed_submit_button:
 			_point_coach_at(_typed_submit_button, "Submit")
-
-	if _is_interactive_tutorial and _tutorial_label:
-		_tutorial_label.text = "Click the safest response. Never instruct them to use water on this fire!"
 
 func _start_dispatch_phase() -> void:
 	_clear_choice_buttons()
@@ -3266,24 +4125,49 @@ func _start_dispatch_phase() -> void:
 		if coached_vehicle == null:
 			coached_vehicle = _vehicle_buttons.get(String(_active_call.get("recommended_vehicle", "")), null)
 		if coached_vehicle is Control:
-			_point_coach_at(coached_vehicle, "Dispatch")
+			_scroll_dialog_to_bottom()
+			# Defer by one frame so the vehicle grid layout is fully resolved
+			# before reading get_global_rect() inside _point_coach_at.
+			var _cv = coached_vehicle
+			get_tree().process_frame.connect(func():
+				_point_coach_at(_cv, "Dispatch")
+			, CONNECT_ONE_SHOT)
 	_update_end_call_button_state()
 
 func _on_choice_option_pressed(option_idx: int) -> void:
+	var am = get_node_or_null("/root/AudioManager")
+	if am:
+		am.play_click()
+	_scroll_dialog_to_top()
 	if _active_call.is_empty() or _player_responded_this_round:
 		return
-	var options: Array = _active_call.get("options", [])
+	var options: Array = _get_scenario_options()
 	if option_idx < 0 or option_idx >= options.size():
 		return
 
-	_player_responded_this_round = true
 	var selected: Dictionary = options[option_idx]
-	var chosen_text = String(selected.get("text", ""))
-	_append_transcript_line("Dispatcher", chosen_text)
 	var label = String(selected.get("label", "uncertain"))
 	var explanation = String(selected.get("explanation", ""))
 	if explanation.is_empty():
 		explanation = String(selected.get("feedback", ""))
+
+	if label != "safe":
+		_feedback_popup_context = "tutorial_retry"
+		_apply_dialog_color_and_juice(false, true)
+		_feedback_dialog.dialog_text = "Incorrect Choice.\n\n%s\n\nPlease try again." % explanation
+		_feedback_dialog.popup_centered()
+		_apply_dialog_juice(false, true)
+		return
+
+	_player_responded_this_round = true
+	var chosen_text = String(selected.get("text", ""))
+	_append_transcript_line("Dispatcher", chosen_text)
+	
+	if _is_interactive_tutorial:
+		if _chat_box and _chat_box.get_parent():
+			_point_coach_at(_chat_box.get_parent(), "Review response")
+		await get_tree().create_timer(3.0).timeout
+		
 	_record_response_review(chosen_text, label, explanation, options)
 	_score_and_show_feedback(label, chosen_text, explanation)
 
@@ -3358,7 +4242,7 @@ func _on_typed_submit_pressed() -> void:
 	var explanation = feedback
 	if not hint.is_empty():
 		explanation += "\n\nHint: " + hint
-	_record_response_review(user_text, label, explanation, _active_call.get("options", []))
+	_record_response_review(user_text, label, explanation, _get_scenario_options())
 	_score_and_show_feedback(label, user_text, explanation)
 	
 	_is_waiting_for_llm = false
@@ -3433,7 +4317,12 @@ func _silent_intake_tracking_from_llm(result: Dictionary, _caller_reply_sent: bo
 	var caller_text = String(result.get("caller_reply", "")).to_lower()
 	var actual_loc = String(_active_call.get("location", "")).to_lower()
 	
-	if not is_ready and actual_loc != "":
+	var state = get_node_or_null("/root/GameState")
+	var is_perf = false
+	if state and state.has_method("get_perfectionist_mode"):
+		is_perf = state.call("get_perfectionist_mode")
+	
+	if not is_ready and actual_loc != "" and not is_perf:
 		var loc_words = actual_loc.split(" ", false)
 		for w in loc_words:
 			var word = w.strip_edges().replace(",", "").replace(".", "").to_lower()
@@ -3550,100 +4439,93 @@ func _build_caller_chatbot_reply(user_text: String, label: String) -> String:
 
 
 func _call_groq_evaluate_and_reply(dispatcher_text: String) -> Dictionary:
-	"""Call Groq API directly from GDScript to get evaluation and caller reply.
+	"""Call Groq API via LLMPersona to get evaluation and caller reply.
 	Returns empty dictionary if request fails."""
-	if _active_call.is_empty(): return {}
-	
-	var incident_type = String(_active_call.get("type", "fire"))
-	var location = String(_active_call.get("location", "Unknown"))
-	var severity = String(_active_call.get("severity", "medium"))
-	var title = String(_active_call.get("title", "Emergency Incident"))
-	
-	var transcript_text = ""
+	if _active_call.is_empty() or _llm_persona == null: return {}
+
+	# ── Gather runtime context ────────────────────────────────────────────────
+	var incident_type : String = String(_active_call.get("type", "fire"))
+	var location      : String = String(_active_call.get("location", "Unknown"))
+	var severity      : String = String(_active_call.get("severity", "medium"))
+	var title         : String = String(_active_call.get("title", "Emergency Incident"))
+
+	var transcript_text : String = ""
 	for t in _conversation_log.slice(-20):
 		transcript_text += "  " + String(t.get("speaker", "")) + ": " + String(t.get("text", "")) + "\n"
-		
-	var scenario_backstory = ""
+
+	var scenario_backstory : String = ""
 	if typeof(_active_call.get("transcript")) == TYPE_ARRAY:
 		for t in _active_call["transcript"]:
 			if typeof(t) == TYPE_DICTIONARY:
-				var sp = String(t.get("speaker", "Caller"))
-				var txt = String(t.get("text", ""))
+				var sp  : String = String(t.get("speaker", "Caller"))
+				var txt : String = String(t.get("text", ""))
 				if "{location}" in txt:
 					txt = txt.replace("{location}", location)
 				scenario_backstory += "- " + sp + ": " + txt + "\n"
-				
-	var arrival_status = "HAVE ARRIVED ON SCENE" if _services_arrived else "Still traveling (NOT on scene yet)"
-	var sys_prompt = """You are an AI orchestrator for a 911 simulator.
 
-TRUE BACKSTORY / INITIAL SITUATION:
-(This is the exact situation the caller is reporting. Do NOT invent new details outside of this scope unless directly asked a question by the dispatcher):
-%s
+	var state = get_node_or_null("/root/GameState")
+	if state and state.has_method("get_locale"):
+		_selected_locale = String(state.call("get_locale"))
 
-SCENARIO METADATA:
-- Type: %s
-- Title: %s
-- Location: %s
-- Severity: %s
-- Emergency Services Status: %s
+	var lang_instruction : String = _llm_persona.lang_instruction_for(_selected_locale)
+	var arrival_status   : String = "HAVE ARRIVED ON SCENE" if _services_arrived else "Still traveling (NOT on scene yet)"
 
-CONVERSATION LOG:
-%s
+	var is_perf   : bool   = state != null and state.has_method("get_perfectionist_mode") and bool(state.call("get_perfectionist_mode"))
+	var perf_rules: String = ""
+	if is_perf and _selected_mode_id == "profressional_nlp_dispatch":
+		perf_rules = _llm_persona.perfectionist_rules(_wrong_advice_count)
 
-Task:
-Evaluate if the dispatcher's instruction is "safe", "unsafe", or "uncertain" (e.g. asking an open question). Provide short feedback for the dispatcher.
-Determine if BOTH the exact address/location AND the nature of the emergency are now known (either because the dispatcher asked or the caller volunteered them).
-If BOTH are known, you MUST set "ready_for_dispatch" to true. Do not be overly strict; if the caller mentions a street name, landmark, or building, the address is gathered. 
-IMPORTANT: A callback number is NOT strictly required to unlock dispatch. If you have the location and the emergency, unlock it immediately.
+	# ── Build prompt via LLMPersona ──────────────────────────────────────────
+	var sys_prompt : String = _llm_persona.build_system_prompt({
+		"scenario_backstory" : scenario_backstory,
+		"incident_type"      : incident_type,
+		"title"              : title,
+		"location"           : location,
+		"severity"           : severity,
+		"arrival_status"     : arrival_status,
+		"transcript_text"    : transcript_text,
+		"lang_instruction"   : lang_instruction,
+		"perf_rules"         : perf_rules,
+	})
+	var user_msg : String = _llm_persona.build_user_message(dispatcher_text, lang_instruction)
 
-Then, generate the caller's next reply (1-3 sentences, emotionally appropriate). 
-IMPORTANT: The caller must ALWAYS reply in English. Even if the SCENARIO METADATA or the dispatcher speaks in Tagalog/Filipino, you MUST translate the information and reply ONLY in English. Never use Tagalog in your "caller_reply".
-IMPORTANT: Do not repeat word-for-word any lines provided in the TRUE BACKSTORY. Use those lines as factual context only. Generate natural, fresh dialogue based on those facts.
-IMPORTANT: Never use "Sir" or "Ma'am" or any gendered pronouns to address the operator. Use gender-neutral phrasing.
-IMPORTANT: The caller MUST directly answer any questions the dispatcher asks. If the dispatcher asks for the address or location, YOU MUST PROVIDE IT, even if you already mentioned it earlier in the call. Never refuse to give the location if asked.
-IMPORTANT: Do not ignore valid questions to panic. If a new detail is asked (e.g. 'what did he steal?' or 'what kind of weapon?'), you MUST invent a plausible short detail if it is not in the backstory, and directly answer the question naturally.
-CRITICAL RULE 1: If the dispatcher directly asks for the address or location (or uses words like 'lokasyon', 'saan kayo', 'address'), YOU MUST reply by giving the exact "Location" listed in the SCENARIO METADATA. 
-CRITICAL RULE 2: Do NOT penalize the dispatcher for asking what the emergency is at the start of the call. If the dispatcher says "911, what's your emergency", "What is your emergency?", "What happened?", or similar, this is ALWAYS "safe" and correct.
-CRITICAL RULE 3: Giving emergency pre-arrival instructions (like first aid, CPR, applying pressure to wounds, restraining a suspect cooperatively, or safety/evacuation orders) while responders are on the way is HIGHLY ENCOURAGED and MUST be evaluated as "safe". Never penalize a dispatcher for offering medical or tactical advice before responders arrive.
-CRITICAL RULE 4: If the caller's own message already contains a specific location (like a street name, building, or landmark) AND a clear nature of emergency, you MUST set "ready_for_dispatch" to true immediately, as the dispatcher now has the necessary info to send help.
-
-Output valid JSON ONLY:
-{
-  "label": "safe",
-  "feedback": "...",
-  "ready_for_dispatch": true,
-  "caller_reply": "..."
-}""" % [scenario_backstory, incident_type, title, location, severity, arrival_status, transcript_text]
-
+	# ── Send request ─────────────────────────────────────────────────────────
 	var payload = {
-		"model": "llama-3.1-8b-instant",
-		"messages": [
+		"model"           : _llm_persona.GROQ_MODEL,
+		"messages"        : [
 			{"role": "system", "content": sys_prompt},
-			{"role": "user", "content": "The dispatcher just said: \"%s\"\nPlease follow the task instructions and output JSON ONLY. (Note: The dispatcher's current message is already in the conversation log provided above as the last entry)." % dispatcher_text}
+			{"role": "user",   "content": user_msg}
 		],
-		"response_format": {"type": "json_object"},
-		"temperature": 0.5,
-		"max_tokens": 150
+		"response_format" : {"type": "json_object"},
+		"temperature"     : _llm_persona.TEMPERATURE,
+		"max_tokens"      : _llm_persona.MAX_TOKENS
 	}
-	
-	var headers = [
-		"Authorization: Bearer " + GROQ_API_KEY, 
-		"Content-Type: application/json",
-		"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-	]
-	var err = _groq_http.request("https://api.groq.com/openai/v1/chat/completions", headers, HTTPClient.METHOD_POST, JSON.stringify(payload))
+
+	var err = _groq_http.request(
+		_llm_persona.GROQ_ENDPOINT,
+		_llm_persona.http_headers(),
+		HTTPClient.METHOD_POST,
+		JSON.stringify(payload)
+	)
 	if err != OK: return {}
-	
+
 	var result = await _groq_http.request_completed
-	if result[1] != 200:
-		return {}
-		
+	if result[1] != 200: return {}
+
 	var body = JSON.parse_string(result[3].get_string_from_utf8())
 	if typeof(body) != TYPE_DICTIONARY or not body.has("choices"): return {}
-	
-	var content = body["choices"][0]["message"]["content"]
+
+	var content : String = body["choices"][0]["message"]["content"]
 	var data = JSON.parse_string(content)
 	if typeof(data) == TYPE_DICTIONARY:
+		# Refresh is_perf in case it changed during the await
+		is_perf = state != null and state.has_method("get_perfectionist_mode") and bool(state.call("get_perfectionist_mode"))
+		if is_perf and _selected_mode_id == "profressional_nlp_dispatch":
+			var lbl : String = String(data.get("label", ""))
+			if lbl == "safe":
+				_wrong_advice_count = 0
+			elif lbl == "unsafe" or lbl == "uncertain":
+				_wrong_advice_count += 1
 		return data
 	return {}
 
@@ -3659,8 +4541,15 @@ func _score_and_show_feedback(label: String, chosen_text: String, explanation: S
 			_call_score += 20
 		"uncertain":
 			_call_score += 5
+			_current_call_mistakes += 1
 		"unsafe":
 			_call_score -= 10
+			_current_call_mistakes += 1
+			
+	if _current_call_mistakes > 0 and _operator_portrait and _operator_portrait.texture is AtlasTexture:
+		var fw = _operator_portrait.texture.atlas.get_width() / 3
+		var fh = _operator_portrait.texture.atlas.get_height()
+		_operator_portrait.texture.region = _trim_region(_operator_portrait.texture.atlas, Rect2(0, 0, fw, fh)) # Serious (Leftmost) trimmed
 
 	if _response_feedback_label:
 		_response_feedback_label.text = explanation
@@ -3678,12 +4567,77 @@ func _score_and_show_feedback(label: String, chosen_text: String, explanation: S
 			title_text = "✅ Okay Choice (+5 pts)"
 			
 		_feedback_popup_context = "response"
+		var is_correct = (label == "safe")
+		var is_unsafe = (label == "unsafe")
+		_apply_dialog_color_and_juice(is_correct, is_unsafe)
 		_feedback_dialog.dialog_text = "%s\n\nYour Action: %s\n\nWhy:\n%s" % [title_text, chosen_text, explanation]
 		_feedback_dialog.popup_centered()
+		_apply_dialog_juice(is_correct, is_unsafe)
 	else:
 		_on_feedback_popup_closed()
 
+func _apply_dialog_color_and_juice(is_correct: bool, is_error: bool) -> void:
+	if _feedback_dialog == null:
+		return
+	var style = _feedback_dialog.get_theme_stylebox("panel")
+	if style and style is StyleBoxFlat:
+		var new_style = style.duplicate()
+		if is_correct:
+			new_style.bg_color = Color(0.1, 0.6, 0.1, 1.0)
+		elif is_error:
+			new_style.bg_color = Color(0.7, 0.1, 0.1, 1.0)
+		else:
+			new_style.bg_color = Color8(255, 244, 229)
+		_feedback_dialog.add_theme_stylebox_override("panel", new_style)
+		_feedback_dialog.add_theme_stylebox_override("embedded_border", new_style)
+	
+	if is_correct or is_error:
+		_feedback_dialog.add_theme_color_override("title_color", Color.WHITE)
+		var lbl = _feedback_dialog.get_label()
+		if lbl:
+			lbl.add_theme_color_override("font_color", Color.WHITE)
+	else:
+		_feedback_dialog.add_theme_color_override("title_color", Color8(44, 54, 72))
+		var lbl = _feedback_dialog.get_label()
+		if lbl:
+			lbl.add_theme_color_override("font_color", Color8(44, 54, 72))
+
+func _apply_dialog_juice(is_correct: bool, is_error: bool) -> void:
+	if _feedback_dialog == null:
+		return
+	if is_error:
+		var original_pos = _feedback_dialog.position
+		var tw = _feedback_dialog.create_tween()
+		var offset = 12
+		var d = 0.05
+		tw.tween_property(_feedback_dialog, "position:x", original_pos.x - offset, d)
+		tw.tween_property(_feedback_dialog, "position:x", original_pos.x + offset, d)
+		tw.tween_property(_feedback_dialog, "position:x", original_pos.x - offset/2.0, d)
+		tw.tween_property(_feedback_dialog, "position:x", original_pos.x + offset/2.0, d)
+		tw.tween_property(_feedback_dialog, "position:x", original_pos.x, d)
+	elif is_correct:
+		var orig_size = _feedback_dialog.size
+		var orig_pos = _feedback_dialog.position
+		var tw = _feedback_dialog.create_tween()
+		var pop_size = Vector2i(orig_size.x + 40, orig_size.y + 20)
+		var pop_pos = Vector2i(orig_pos.x - 20, orig_pos.y - 10)
+		tw.parallel().tween_property(_feedback_dialog, "size", pop_size, 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(_feedback_dialog, "position", pop_pos, 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.chain().parallel().tween_property(_feedback_dialog, "size", orig_size, 0.15).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(_feedback_dialog, "position", orig_pos, 0.15).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+
 func _on_feedback_popup_closed() -> void:
+	if _feedback_popup_context == "tutorial_retry":
+		_feedback_popup_context = ""
+		if _is_interactive_tutorial and _choices_box:
+			_choices_box.alignment = BoxContainer.ALIGNMENT_CENTER
+			var target = _choices_box.get_parent() if _choices_box.get_parent() is ScrollContainer else _choices_box
+			_point_coach_at(target, "Try again! Select the safest response.")
+		return
+	if _feedback_popup_context == "end_call":
+		_feedback_popup_context = ""
+		_on_close_call_panel()
+		return
 	if _feedback_popup_context != "response":
 		_feedback_popup_context = ""
 		return
@@ -3701,17 +4655,74 @@ func _on_feedback_popup_closed() -> void:
 func _append_transcript_line(speaker: String, text: String) -> void:
 	# Track conversation for LLM context
 	_conversation_log.append({"speaker": speaker, "text": text})
-	if _transcript_label:
-		var color := "#c5d1e8"  # default light blue
-		if speaker == "911":
-			color = "#7ab8e6"  # blue for dispatcher
-		elif speaker == "Caller":
-			color = "#e8c97a"  # warm gold for caller
-		elif speaker == "System":
-			color = "#8a9ab5"  # muted for system
-		elif speaker == "Dispatcher":
-			color = "#7ae89a"  # green for player
-		_transcript_label.append_text("[color=%s]- %s[/color]\n" % [color, text])
+	if _chat_box:
+		var msg_hbox = HBoxContainer.new()
+		msg_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		
+		var bubble_panel = PanelContainer.new()
+		var bubble_style = StyleBoxFlat.new()
+		bubble_style.corner_radius_top_left = 6
+		bubble_style.corner_radius_top_right = 6
+		bubble_style.corner_radius_bottom_left = 6
+		bubble_style.corner_radius_bottom_right = 6
+		bubble_style.content_margin_left = 10
+		bubble_style.content_margin_top = 8
+		bubble_style.content_margin_right = 10
+		bubble_style.content_margin_bottom = 8
+		bubble_panel.add_theme_stylebox_override("panel", bubble_style)
+		
+		var msg_label = RichTextLabel.new()
+		msg_label.bbcode_enabled = true
+		msg_label.fit_content = true
+		msg_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		msg_label.custom_minimum_size = Vector2(150, 0)
+		msg_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		
+		var is_operator = (speaker == "911" or speaker == "Dispatcher")
+		var is_system = (speaker == "System")
+		
+		if is_operator:
+			bubble_style.bg_color = Color(0.12, 0.45, 0.55, 1.0)
+			msg_label.add_theme_color_override("default_color", Color(0.9, 1.0, 1.0, 1.0))
+			msg_label.text = text
+			
+			var spacer = Control.new()
+			spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			msg_hbox.add_child(spacer)
+			msg_hbox.add_child(bubble_panel)
+		elif is_system:
+			bubble_style.bg_color = Color(0.2, 0.2, 0.25, 0.8)
+			msg_label.add_theme_color_override("default_color", Color(0.8, 0.85, 0.9, 1.0))
+			msg_label.text = "[center][i]" + text + "[/i][/center]"
+			
+			var spacer_left = Control.new()
+			spacer_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var spacer_right = Control.new()
+			spacer_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			msg_hbox.add_child(spacer_left)
+			msg_hbox.add_child(bubble_panel)
+			msg_hbox.add_child(spacer_right)
+		else: # Caller
+			bubble_style.bg_color = Color(0.2, 0.2, 0.2, 1.0)
+			msg_label.add_theme_color_override("default_color", Color(0.9, 0.8, 0.6, 1.0))
+			msg_label.text = text
+			
+			msg_hbox.add_child(bubble_panel)
+			var spacer = Control.new()
+			spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			msg_hbox.add_child(spacer)
+			
+		bubble_panel.add_child(msg_label)
+		_chat_box.add_child(msg_hbox)
+		
+		# Scroll to bottom reliably
+		var scroll_timer = get_tree().create_timer(0.15)
+		scroll_timer.timeout.connect(func():
+			if is_instance_valid(_chat_box) and is_instance_valid(_chat_box.get_parent()):
+				var scroll = _chat_box.get_parent()
+				if scroll is ScrollContainer:
+					scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
+		)
 
 func _clear_choice_buttons() -> void:
 	if _hint_button:
@@ -3749,13 +4760,11 @@ func _set_vehicle_buttons_enabled(enabled: bool) -> void:
 func _educational_vehicle_detail(vehicle_id: String, incident_type: String) -> String:
 	match vehicle_id:
 		"fire_truck":
-			if incident_type == "fire":
-				return "Fire trucks carry high-pressure hoses, breathing equipment, ladders, and tools to suppress flames and evacuate people safely."
-			return "Fire crews specialize in scene stabilization and hazard control during dangerous incidents."
+			return "BFP teams suppress active fires, mitigate hazardous materials, and perform heavy technical rescue (e.g., extracting trapped victims)."
 		"ambulance":
-			return "Ambulance teams provide life-saving medical care, bleeding control, oxygen support, and fast transport to the hospital."
+			return "MDRRMO teams provide life-saving medical care, bleeding control, oxygen support, and fast transport to the hospital."
 		"police":
-			return "Police officers secure the area, manage suspects, protect bystanders, and keep responders safe while the incident is handled."
+			return "PNP officers secure the area, manage suspects, protect bystanders, and keep responders safe while the incident is handled."
 		_:
 			return "This unit can respond, but matching the exact emergency type improves outcomes and response speed."
 
@@ -3808,6 +4817,10 @@ func _on_vehicle_button_pressed(vehicle_id: String) -> void:
 			_response_feedback_label.text = "Finish the caller conversation first. Dispatch unlocks after response review."
 		return
 
+	var am = get_node_or_null("/root/AudioManager")
+	if am:
+		am.play_click()
+
 	_has_dispatched_vehicle = true
 	if _selected_mode_id == "easy_multiple_choice":
 		_dispatch_phase_unlocked = false
@@ -3834,8 +4847,7 @@ func _on_vehicle_button_pressed(vehicle_id: String) -> void:
 
 	var selected_name = _vehicle_name(selected_vehicle)
 	
-	if _transcript_label:
-		_transcript_label.append_text("[color=#7ae89a]- Dispatching %s to %s.[/color]\n" % [selected_name, String(_active_call.get("location", "scene"))])
+	_append_transcript_line("System", "Dispatching %s to %s." % [selected_name, String(_active_call.get("location", "scene"))])
 
 	var correct_dispatch = recommended_list.has(selected_vehicle)
 	var dispatch_title = ""
@@ -3848,16 +4860,39 @@ func _on_vehicle_button_pressed(vehicle_id: String) -> void:
 		if _assignment_label:
 			_assignment_label.text = "Unit sent! (+15 pts) You can dispatch more units if needed."
 	else:
-		dispatch_title = "⚠️ Dispatch Sent"
-		dispatch_explanation = "Recommended unit(s): %s\n%s" % [recommended_str, _mismatch_vehicle_detail(selected_vehicle, recommended_list, incident_type)]
-		if _assignment_label:
-			_assignment_label.text = "Unit sent. Recommended was %s." % recommended_str
+		if _selected_mode_id == "easy_multiple_choice":
+			dispatch_title = "Incorrect Unit Sent"
+			dispatch_explanation = "This unit cannot handle the emergency. Please recall them and send the recommended unit(s): %s\n\nReason:\n%s" % [recommended_str, _mismatch_vehicle_detail(selected_vehicle, recommended_list, incident_type)]
+			if _assignment_label:
+				_assignment_label.text = "Incorrect unit sent. Try again."
+			
+			_has_dispatched_vehicle = false 
+			_dispatch_phase_unlocked = true
+
+			if _feedback_dialog:
+				_feedback_popup_context = ""
+				_apply_dialog_color_and_juice(false, true)
+				_feedback_dialog.dialog_text = "%s\n\nYour Dispatch: %s\n\nWhy:\n%s" % [dispatch_title, selected_name, dispatch_explanation]
+				_feedback_dialog.popup_centered(Vector2i(760, 320))
+				_apply_dialog_juice(false, true)
+				
+			if btn:
+				btn.disabled = false 
+			_set_vehicle_buttons_enabled(true)
+			return
+		else:
+			dispatch_title = "Incorrect Dispatch Sent"
+			dispatch_explanation = "Recommended unit(s): %s\n%s" % [recommended_str, _mismatch_vehicle_detail(selected_vehicle, recommended_list, incident_type)]
+			if _assignment_label:
+				_assignment_label.text = "Unit sent. Recommended was %s." % recommended_str
 
 	if _feedback_dialog:
 		if _selected_mode_id == "easy_multiple_choice":
 			_feedback_popup_context = "vehicle_dispatch"
+			_apply_dialog_color_and_juice(correct_dispatch, not correct_dispatch)
 			_feedback_dialog.dialog_text = "%s\n\nYour Dispatch: %s\n\nWhy:\n%s" % [dispatch_title, selected_name, dispatch_explanation]
 			_feedback_dialog.popup_centered(Vector2i(760, 320))
+			_apply_dialog_juice(correct_dispatch, not correct_dispatch)
 	_record_vehicle_review(selected_vehicle, recommended_str, correct_dispatch, dispatch_explanation)
 
 	if _selected_mode_id == "easy_multiple_choice":
@@ -3871,7 +4906,7 @@ func _on_vehicle_button_pressed(vehicle_id: String) -> void:
 	var speed_mult = max(1.0, responder_speed_multiplier)
 	var travel_s = max(0.8, base_travel_s / speed_mult)
 	_pending_resolution_s = _resolution_time_for(severity, correct_dispatch, _response_quality)
-	_follow_dispatched_vehicle = _selected_mode_id == "easy_multiple_choice"
+	_follow_dispatched_vehicle = true
 	_follow_vehicle_pos_valid = false
 	if _timeline_label:
 		_timeline_label.text = "Unit en route. ETA %.0fs" % travel_s
@@ -3926,7 +4961,7 @@ func _on_response_arrived(_vehicle_id: String, _world_position: Vector2) -> void
 	
 	# Restore call window only for easy mode where we minimized it.
 	if _selected_mode_id == "easy_multiple_choice":
-		_restore_call_after_dispatch()
+		pass
 	else:
 		if _resolution_timer:
 			_resolution_timer.start(_pending_resolution_s)
@@ -3940,9 +4975,12 @@ func _on_response_arrived(_vehicle_id: String, _world_position: Vector2) -> void
 	if _is_interactive_tutorial and _tutorial_label:
 		_tutorial_label.text = "Units arrived. Great job, moving to the next call."
 	
-	# Easy mode can auto-close instantly. Certified Mode auto-closes via resolution timer.
+	# Easy mode can auto-close instantly. Profressional Mode auto-closes via resolution timer.
 	if _selected_mode_id == "easy_multiple_choice":
-		_complete_current_call(true, false, "Units arrived and secured the scene. Call closed.")
+		if _is_interactive_tutorial:
+			_run_tutorial_ui_demonstration()
+		else:
+			_complete_current_call(true, true, "Units arrived and secured the scene. Call closed.")
 
 func _on_resolution_timeout() -> void:
 	if _active_call.is_empty():
@@ -3981,8 +5019,7 @@ func _complete_current_call(include_speed_bonus: bool, show_completion_popup: bo
 	if not _current_call_review.is_empty():
 		_current_call_review["score"] = _call_score
 		_shift_call_reviews.append(_current_call_review.duplicate(true))
-		if _selected_mode_id != "easy_multiple_choice":
-			details_str = "\n\n--- Evaluation Details ---\n" + _build_shift_review_detail(_current_call_review)
+		details_str = "\n\n--- Evaluation Details ---\n" + _build_shift_review_detail(_current_call_review)
 		_current_call_review.clear()
 
 	var speed_text = " (Speed bonus: +%d)" % speed_bonus if speed_bonus > 0 else ""
@@ -3996,7 +5033,8 @@ func _complete_current_call(include_speed_bonus: bool, show_completion_popup: bo
 	
 	if _shift_remaining_s <= 0 and _total_score >= shift_min_score and not _shift_ready_announced:
 		_shift_ready_announced = true
-		_show_kid_message("Shift Complete!", "You reached %d points. End shift is now unlocked." % shift_min_score)
+		if _hint_label:
+			pass
 
 	if _arrival_timer:
 		_arrival_timer.stop()
@@ -4004,6 +5042,10 @@ func _complete_current_call(include_speed_bonus: bool, show_completion_popup: bo
 		_resolution_timer.stop()
 	if _transcript_timer:
 		_transcript_timer.stop()
+		
+	var am = get_node_or_null("/root/AudioManager")
+	if am and am.has_method("stop_ring"):
+		am.stop_ring()
 
 	_active_call.clear()
 	_pending_call.clear()
@@ -4029,42 +5071,40 @@ func _complete_current_call(include_speed_bonus: bool, show_completion_popup: bo
 			_tutorial_panel = null
 
 		var state = get_node_or_null("/root/GameState")
+		var was_forced = false
 		if state:
 			state.call("set_first_live_call_done")
+			if state.has_method("get_force_tutorial") and state.call("get_force_tutorial"):
+				state.call("set_force_tutorial", false)
+				was_forced = true
+				
+		if was_forced:
+			_show_kid_message("Tutorial Finished", "Returning to your saved shift / normal mode...")
+			await get_tree().create_timer(3.0).timeout
+			get_tree().reload_current_scene()
+			return
+			
 	_interactive_phase = 0
 	_player_responded_this_round = false
 
+
 	if _dim_overlay:
 		_dim_overlay.visible = false
-	_set_vehicle_buttons_enabled(false)
-	if _end_call_button:
-		_end_call_button.disabled = true
-		_end_call_button.text = "End Call"
-	if _answer_button:
-		_answer_button.disabled = true
-		_answer_button.text = "Answer Call"
-	_clear_choice_buttons()
-	if _typed_row:
-		_typed_row.visible = false
-	if _typed_input:
-		_typed_input.text = ""
-	if _response_prompt_label:
-		_response_prompt_label.text = ""
-	if _response_feedback_label:
-		_response_feedback_label.text = ""
-	if _assignment_label:
-		_assignment_label.text = ""
-	if _timeline_label:
-		_timeline_label.text = ""
-	if _dispatch_panel:
-		_dispatch_panel.visible = false
-	if _vehicle_grid:
-		_vehicle_grid.visible = false
 	if _minimized_call_button:
 		_minimized_call_button.visible = false
+	if _dispatch_panel:
+		_dispatch_panel.visible = false
+	_set_vehicle_buttons_enabled(false)
+	if _end_call_button:
+		if _selected_mode_id == "easy_multiple_choice":
+			_end_call_button.visible = false
+		else:
+			_end_call_button.disabled = true
+			_end_call_button.text = "End Call"
 
-	if _hint_label:
-		_hint_label.text = "Call ended. Score: %d | Total: %d. Waiting for next alert." % [_call_score, _total_score]
+	if _hint_label and _llm_persona:
+		var tips : Array = _llm_persona.dispatcher_tips()
+		_hint_label.text = tips[randi() % tips.size()]
 
 	if _calls_completed >= _max_calls_per_shift():
 		if _next_call_timer:
@@ -4075,7 +5115,7 @@ func _complete_current_call(include_speed_bonus: bool, show_completion_popup: bo
 		if _total_score < shift_min_score:
 			_pending_day_restart = false
 			if _hint_label:
-				_hint_label.text = "Shift failed: minimum score not reached. Day %d will restart." % _current_day
+				pass
 			_show_shift_review(
 				"Shift Failed",
 				"You completed %d calls and scored %d points. Minimum required score is %d. Day %d will restart after you close this review." % [_calls_completed, _total_score, shift_min_score, _current_day],
@@ -4083,7 +5123,7 @@ func _complete_current_call(include_speed_bonus: bool, show_completion_popup: bo
 			)
 			return
 		if _hint_label:
-			_hint_label.text = "Day complete! Requirements met. Tap Proceed to Day %d." % (_current_day + 1)
+			pass
 		_show_shift_review(
 			"Day Complete",
 			"Great work! You met the shift requirements. Tap 'Proceed to Day %d' in the status box after reviewing your calls." % (_current_day + 1),
@@ -4094,14 +5134,18 @@ func _complete_current_call(include_speed_bonus: bool, show_completion_popup: bo
 	if show_completion_popup:
 		var popup_msg = "Nice work! You helped the caller stay safe.\nCall score: %d\nTotal score: %d%s" % [_call_score, _total_score, details_str]
 		_show_kid_message("Mission Complete!", popup_msg)
+		if _kid_message_dialog != null:
+			await _kid_message_dialog.confirmed
 
 	if not _queued_calls.is_empty():
 		if _next_call_timer:
 			_next_call_timer.stop()
 		_pending_call = _queued_calls.pop_front().duplicate(true)
+		await get_tree().create_timer(randf_range(1.0, 5.0)).timeout
 		_spawn_call_marker()
-		if _hint_label:
-			_hint_label.text = "A queued emergency is ready now. Remaining waiting calls: %d" % _queued_calls.size()
+		if _hint_label and _llm_persona:
+			var tips : Array = _llm_persona.dispatcher_tips()
+			_hint_label.text = tips[randi() % tips.size()]
 		return
 
 	var base_delay = _dispatch_rng.randf_range(dispatch_between_calls_min_s, dispatch_between_calls_max_s)
@@ -4141,14 +5185,21 @@ func _on_close_call_panel() -> void:
 	_call_active = false
 	if _minimized_call_button:
 		_minimized_call_button.visible = true
-		var severity = String(_active_call.get("severity", "medium")).to_upper()
-		var call_type = String(_active_call.get("type", "Emergency")).to_upper()
-		_minimized_call_button.text = "Return to Call [%s: %s]" % [severity, call_type]
+		_minimized_call_button.text = "Return to Call"
 	if _hint_label:
-		_hint_label.text = "Call minimized. Use 'Return to Call' in the status box."
+		pass
 	_hide_coach_pointer()
 
 func _pick_random_road_position() -> Vector2:
+	if not _buildings_px.is_empty():
+		var idx = _dispatch_rng.randi_range(0, _buildings_px.size() - 1)
+		var base: Vector2 = _buildings_px[idx]
+		var jitter = Vector2(_dispatch_rng.randf_range(-16.0, 16.0), _dispatch_rng.randf_range(-16.0, 16.0))
+		var pos = base + jitter
+		pos.x = clamp(pos.x, 24.0, float(_img_w) - 24.0)
+		pos.y = clamp(pos.y, 24.0, float(_img_h) - 24.0)
+		return pos
+
 	if _route_points_px.is_empty():
 		return Vector2(float(_img_w) * 0.5, float(_img_h) * 0.5)
 	var idx = _dispatch_rng.randi_range(0, _route_points_px.size() - 1)
@@ -4172,9 +5223,9 @@ func _icon_for_call_type(call_type: String) -> Texture2D:
 
 func _travel_time_for(_severity: String, correct_vehicle: bool) -> float:
 	var state = get_node_or_null("/root/GameState")
-	var difficulty = state.call("get_certified_difficulty") if state != null else "easy"
+	var difficulty = state.call("get_profressional_difficulty") if state != null else "easy"
 	
-	if _selected_mode_id != "certified_nlp_dispatch":
+	if _selected_mode_id != "profressional_nlp_dispatch":
 		difficulty = "easy"
 		
 	var base = 10.0
@@ -4210,11 +5261,11 @@ func _resolution_time_for(severity: String, correct_vehicle: bool, response_qual
 func _vehicle_name(vehicle_id: String) -> String:
 	match _canonical_vehicle_id(vehicle_id):
 		"fire_truck":
-			return "Fire Truck"
+			return "BFP"
 		"ambulance":
-			return "Ambulance"
+			return "MDRRMO"
 		"police":
-			return "Police Unit"
+			return "PNP"
 		_:
 			return "Response Unit"
 
@@ -4240,5 +5291,235 @@ func _save_shift_state_to_game_state() -> void:
 			"shift_remaining_s": _shift_remaining_s
 		}
 		state.call("save_shift_progress", shift_data)
+
+# Public entry-point called by the settings menu's Save & Exit button.
+# Persists the current mid-shift state so it can be resumed later.
+func serialize_session() -> void:
+	_save_shift_state_to_game_state()
+
+
+
+func _run_tutorial_ui_demonstration() -> void:
+	var canvas = get_node_or_null("CanvasLayer")
+	if not canvas:
+		_complete_current_call(true, true, "Units arrived and secured the scene. Call closed.")
+		return
 		
+	if _tutorial_panel:
+		_tutorial_panel.visible = false
 		
+	# Skip the blank 'X' clicking step and instantly transition to evaluation.
+	_on_close_call_panel()
+	if _minimized_call_button:
+		_minimized_call_button.hide()
+		
+	_hide_coach_pointer()
+	
+	if _toggle_hud_button:
+		_toggle_hud_button.visible = true
+		_show_tutorial_focus(_toggle_hud_button)
+		_point_coach_at(_toggle_hud_button, "Click the Information button to open it.")
+		await _toggle_hud_button.pressed
+		
+		if _hud_panel and _hint_label:
+			_show_tutorial_focus(_hint_label)
+			_point_coach_at(_hint_label, "Click the tips box to show a different tip.")
+			var old_index = _tip_index
+			while _tip_index == old_index:
+				await get_tree().process_frame
+				
+	var settings_btn: Button = get_node_or_null("CanvasLayer/SettingsButton")
+	if settings_btn:
+		_show_tutorial_focus(settings_btn)
+		_point_coach_at(settings_btn, "Click Settings to change language and game settings.")
+		# Wait for the player to press the settings button
+		await settings_btn.pressed
+		_hide_coach_pointer()
+		_hide_tutorial_focus()
+		
+		# Give a frame so _on_home_pressed runs and adds the menu
+		await get_tree().process_frame
+		
+		# Find the settings menu and run the in-menu tutorial (which runs with PROCESS_MODE_ALWAYS)
+		# The menu's run_tutorial() will close the menu when done, emitting 'closed'
+		var settings_menu_node: Node = null
+		if canvas:
+			for child in canvas.get_children():
+				if child.has_method("run_tutorial"):
+					settings_menu_node = child
+					break
+		
+		if settings_menu_node:
+			# Temporarily set this node to always process so we can await the closed signal while tree is paused
+			var old_process_mode = process_mode
+			process_mode = Node.PROCESS_MODE_ALWAYS
+			settings_menu_node.run_tutorial()
+			# The menu emits 'closed' then queue_frees and unpauses the tree
+			await settings_menu_node.closed
+			process_mode = old_process_mode
+		else:
+			# Fallback: just wait for unpause
+			var old_process_mode = process_mode
+			process_mode = Node.PROCESS_MODE_ALWAYS
+			while get_tree().paused:
+				await get_tree().process_frame
+			process_mode = old_process_mode
+		
+		# Give frames for clean-up
+		await get_tree().process_frame
+		await get_tree().process_frame
+	
+	_hide_coach_pointer()
+
+	var original_score = _total_score
+	_total_score = shift_min_score
+	if _score_label:
+		_score_label.text = "Score: %d" % _total_score
+	_update_shift_ui()
+	
+	_show_shift_review("Shift Review (Tutorial)", "This screen appears when you end your shift to evaluate your performance.", "tutorial_demo", true)
+	
+	if _shift_review_dialog:
+		var ok_btn = _shift_review_dialog.get_ok_button()
+		if ok_btn:
+			await get_tree().process_frame
+			await get_tree().process_frame
+			_show_tutorial_focus(ok_btn)
+			_point_coach_at(ok_btn, "Click the OK button to proceed.")
+		await _shift_review_dialog.confirmed
+		
+	# Cleanup
+	_hide_coach_pointer()
+	_hide_tutorial_focus()
+	_is_interactive_tutorial = false
+	
+	_total_score = original_score
+	if _score_label:
+		_score_label.text = "Score: %d" % _total_score
+	_update_shift_ui()
+	if _shift_review_dialog:
+		_shift_review_dialog.hide()
+		
+	_complete_current_call(true, true, "Units arrived and secured the scene. Call closed.")
+
+func _get_scenario_options() -> Array:
+	if _active_call.is_empty(): return []
+	var transcript: Array = _active_call.get("transcript", [])
+	if transcript.is_empty() and _active_call.has("transcript_en"):
+		transcript = _active_call.get("transcript_en", [])
+	for i in range(transcript.size() - 1, -1, -1):
+		var item = transcript[i]
+		if typeof(item) == TYPE_DICTIONARY and item.has("options"):
+			var spk = String(item.get("speaker", "")).to_lower()
+			if spk == "911" or spk == "dispatcher" or spk == "operator":
+				return item.get("options", [])
+	return _active_call.get("options", [])
+
+func _clean_option_text_for_normal_mode(text: String) -> String:
+	var lower = text.to_lower()
+	var stripped = text
+	
+	# English prefixes
+	var en_prefixes = [
+		"i am sending help right away. ",
+		"i am sending help. ",
+		"i will send someone. ",
+		"i am sending an ambulance. "
+	]
+	for p in en_prefixes:
+		if lower.begins_with(p):
+			stripped = text.substr(p.length()).strip_edges()
+			lower = stripped.to_lower()
+	
+	# Tagalog prefixes
+	var tl_prefixes = [
+		"padating na po ang tulong. "
+	]
+	for p in tl_prefixes:
+		if lower.begins_with(p):
+			stripped = text.substr(p.length()).strip_edges()
+			lower = stripped.to_lower()
+			
+	# Cleanup any leftover dots or spaces
+	if stripped == "." or stripped == ".." or stripped == "..." or stripped == "":
+		return ""
+		
+	# Capitalize first letter if needed
+	if stripped.length() > 0:
+		stripped = stripped.left(1).to_upper() + stripped.substr(1)
+		
+	return stripped
+
+func _get_scenario_bad_texts(fallback_defaults: Array) -> Array:
+	var bad = []
+	var scenario_opts: Array = _get_scenario_options()
+	for opt in scenario_opts:
+		if typeof(opt) == TYPE_DICTIONARY and String(opt.get("label", "")).to_lower() == "unsafe":
+			var text = String(opt.get("text", "")).strip_edges()
+			text = _clean_option_text_for_normal_mode(text)
+			if text != "":
+				bad.append(text)
+	
+	if bad.size() == 0:
+		bad = fallback_defaults.duplicate()
+	
+	bad.shuffle()
+	return bad
+
+func _trim_region(tex: Texture2D, region: Rect2) -> Rect2:
+	if not tex: return region
+	var img = tex.get_image()
+	if not img: return region
+	var region_img = img.get_region(region)
+	var used = region_img.get_used_rect()
+	if used.size == Vector2i.ZERO: return region
+	return Rect2(region.position.x + used.position.x, region.position.y + used.position.y, used.size.x, used.size.y)
+
+func _layout_choice_buttons(buttons: Array) -> void:
+	if _choices_box == null: return
+	for c in _choices_box.get_children():
+		c.queue_free()
+		
+	var count = buttons.size()
+	if count == 0: return
+
+	var row1 = HBoxContainer.new()
+	row1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row1.alignment = BoxContainer.ALIGNMENT_CENTER
+	row1.add_theme_constant_override("separation", 10)
+	_choices_box.add_child(row1)
+
+	var row2 = null
+	if count > 2:
+		row2 = HBoxContainer.new()
+		row2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row2.alignment = BoxContainer.ALIGNMENT_CENTER
+		row2.add_theme_constant_override("separation", 10)
+		_choices_box.add_child(row2)
+
+	for i in range(count):
+		var btn = buttons[i]
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(0, 60)
+		
+		if count <= 2:
+			row1.add_child(btn)
+		elif count == 3:
+			if i < 2:
+				row1.add_child(btn)
+			else:
+				var spacer_left = Control.new()
+				spacer_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				var spacer_right = Control.new()
+				spacer_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				row2.add_child(spacer_left)
+				row2.add_child(btn)
+				btn.size_flags_stretch_ratio = 2.0
+				row2.add_child(spacer_right)
+		else:
+			if i < 2:
+				row1.add_child(btn)
+			else:
+				row2.add_child(btn)
+
+		_animate_choice_button_attention(btn, i)
